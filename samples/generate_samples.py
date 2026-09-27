@@ -76,10 +76,20 @@ def _hdfc_events() -> list[tuple[datetime.date, str, float, str]]:
         # Smallcase grey area: flat monthly, reads like a platform fee (low-conf).
         ev.append((on(y, m, 22), "UPI-AUTOPAY-SMALLCASE-smallcase.pay@yesbank-SMC01-FEE", 123.00, "debit"))
 
-    # Some non-recurring noise (should stay out of the confirmed list or be low).
+        # --- recurring NOISE: regular, but NOT a subscription. Must be set aside. ---
+        # Transfer to the user's own account: carries the holder name, no "self" keyword,
+        # so only holder-name matching (not a keyword) can catch it.
+        ev.append((on(y, m, 2), "UPI-RAHUL MEHTA-rahul.mehta@okaxis-FUND TRANSFER", 15000.00, "debit"))
+        # A tiny recurring charge below the minimum value.
+        ev.append((on(y, m, 6), "UPI-AUTOPAY-DAILYHUNT-dailyhunt@ybl-NEWS", 49.00, "debit"))
+
+    # Non-recurring one-offs (dropped as singletons by detection).
     ev.append((on(2026, 4, 9), "UPI-RAHUL SHARMA-rahul.sharma@oksbi-P2P-441", 2500.00, "debit"))
     ev.append((on(2026, 6, 21), "POS 4629-BIGBASKET-GROCERY", 1840.50, "debit"))
     ev.append((on(2026, 7, 2), "ATM WDL-HDFC ATM ANDHERI", 5000.00, "debit"))
+    # Irregular railway bookings: same amount, irregular timing -> not recurring.
+    for d in (datetime.date(2026, 3, 9), datetime.date(2026, 4, 25), datetime.date(2026, 7, 8)):
+        ev.append((d, "UPI-IRCTC-irctc@sbi-TICKET", 500.00, "debit"))
     return ev
 
 

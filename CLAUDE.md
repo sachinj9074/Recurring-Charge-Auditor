@@ -38,6 +38,20 @@ is confined to one thin ingestion layer.
   confirm or correct, especially which direction is money-out.
 - Detect over-inclusively by loosening deterministic thresholds, never by letting
   the LLM guess. False positives are dismissed by the user; misses are invisible.
+- Detect for recall, present for precision. The detector stays over-inclusive, but
+  the default view is a short, confident shortlist of genuine subscriptions and
+  bills. A charge qualifies only as a genuine recurring pattern: a steady amount
+  (or a flagged price rise) AND steady timing for its cadence (monthly on ~the same
+  day-of-month for a user-set minimum number of months, weekly on the same weekday
+  for 8+ weeks, daily for 28+ days, or a near-uniform gap for the longer cadences).
+  Two demotion tiers, and nothing is ever deleted (the user can promote from either):
+    - Set aside: a short list of real patterns held back for a stated reason: below
+      the user-set minimum value (default 100), a transfer between the user's own
+      accounts (matched on the account-holder's own name), personal/P2P, or too
+      little history yet (emerging).
+    - Ignored: a collapsed, de-emphasized pile of spend with no steady amount or
+      schedule (random daily food, cabs, cash/ATM, one-off vendor payments). It is
+      kept out of the way so it does not crowd the review, not hard-deleted.
 - No limit on which bank. Limit on file format only. Tabular (CSV/XLS/XLSX) is
   Phase 1; PDF is later.
 - Strip personal identifiers (name, address, account number, balance) before
@@ -49,6 +63,12 @@ is confined to one thin ingestion layer.
 
 ## Current phase
 
-Phase 1 (MVP). See section 12 of the spec for the module breakdown, non-goals,
-success criteria, and the open build decisions (stack, auth, persistence) that
-are still to be made.
+Phase 1 (MVP), built. The open build decisions are settled: Streamlit (Python
+3.12); Anthropic Claude for enrichment only; self-rolled per-user auth (PBKDF2)
+with AES-GCM per-user encryption; storage on Cloudflare R2 when hosted, or a
+git-ignored encrypted local folder otherwise. The pipeline (ingestion,
+deterministic detection, the distillation funnel, enrichment, and the review UI), a
+full pytest suite, and a strict eval scorer are in place. Remaining: the
+subscription-first UI polish and personalization (M7), then hosted deploy (see
+`DEPLOY.md`) and publishing. See section 12 of the spec for the module breakdown,
+non-goals, and success criteria.

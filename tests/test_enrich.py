@@ -15,9 +15,10 @@ def _charge(desc="UPI-SPOTIFY-spotify@hdfcbank", amt=119):
 
 def test_minimize_sends_only_allowed_fields():
     m = enrich.minimize(_charge())
-    assert set(m) == {"id", "descriptor", "vpa", "channel", "sample_amount", "cadence"}
-    # Occurrences, totals, and dates are never handed to the model.
-    assert "occurrences" not in m and "total_amount" not in m
+    assert set(m) == {"id", "descriptor", "vpa", "channel", "amount_min", "amount_max",
+                      "cadence", "times_seen", "distinct_months", "amount_stable"}
+    # The raw occurrence list, per-occurrence dates, and totals are never sent.
+    assert "occurrences" not in m and "total_amount" not in m and "first_seen" not in m
 
 
 def test_apply_enrichment_sets_three_fields():

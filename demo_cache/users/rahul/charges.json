@@ -1,9 +1,9 @@
 [
   {
-    "id": "chg_03dff30a6258",
+    "id": "chg_33974d567243",
     "bank_account_id": "bank_hdfc",
     "channel": "ach",
-    "merchant_key": "axis mutual fund sip axismf",
+    "merchant_key": "axis mutual fund sip",
     "raw_descriptor": "ACH D- AXIS MUTUAL FUND-SIP-AXISMF7781",
     "vpa": null,
     "occurrences": [
@@ -38,6 +38,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -55,6 +58,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": "investment_commitment",
+    "mandate": false,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -63,7 +67,7 @@
     "explanation": "Monthly SIP into an Axis mutual fund."
   },
   {
-    "id": "chg_f772afff4761",
+    "id": "chg_d14925333701",
     "bank_account_id": "bank_hdfc",
     "channel": "ach",
     "merchant_key": "razorpaysoftwarepriv",
@@ -101,6 +105,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -118,6 +125,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": null,
+    "mandate": false,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -126,10 +134,10 @@
     "explanation": "A subscription collected through the Razorpay aggregator."
   },
   {
-    "id": "chg_384c7872ed2b",
+    "id": "chg_17154ca967bf",
     "bank_account_id": "bank_hdfc",
     "channel": "ach",
-    "merchant_key": "indian clearing corp equity iccl",
+    "merchant_key": "indian clearing corp equity",
     "raw_descriptor": "ACH D- INDIAN CLEARING CORP-EQUITY-ICCL221",
     "vpa": null,
     "occurrences": [
@@ -164,6 +172,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -181,6 +192,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": "investment_commitment",
+    "mandate": false,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -189,133 +201,7 @@
     "explanation": "Equity purchase settled via the clearing corporation."
   },
   {
-    "id": "chg_c16d06b5fd70",
-    "bank_account_id": "bank_hdfc",
-    "channel": "upi",
-    "merchant_key": "groww.axis@okicici",
-    "raw_descriptor": "UPI-AUTOPAY-GROWW-groww.axis@okicici-GROW0001-SIP",
-    "vpa": "groww.axis@okicici",
-    "occurrences": [
-      {
-        "date": "2026-03-10",
-        "amount": 10000.0
-      },
-      {
-        "date": "2026-04-10",
-        "amount": 10000.0
-      },
-      {
-        "date": "2026-05-10",
-        "amount": 10000.0
-      },
-      {
-        "date": "2026-06-10",
-        "amount": 10000.0
-      },
-      {
-        "date": "2026-07-10",
-        "amount": 10000.0
-      },
-      {
-        "date": "2026-08-10",
-        "amount": 10000.0
-      }
-    ],
-    "representative_amount": 10000.0,
-    "cadence": "monthly",
-    "confidence": "HIGH",
-    "distinct_months": 6,
-    "median_gap_days": 31,
-    "amount_stable": true,
-    "price_creep": false,
-    "price_segments": [
-      {
-        "amount": 10000.0,
-        "from": "2026-03-10",
-        "to": "2026-08-10",
-        "count": 6
-      }
-    ],
-    "status": "active",
-    "missed_payment": false,
-    "total_amount": 60000.0,
-    "first_seen": "2026-03-10",
-    "last_seen": "2026-08-10",
-    "occurrence_count": 6,
-    "internal_transfer_hint": false,
-    "category_hint": "investment_commitment",
-    "duplicate": false,
-    "cross_account_duplicate": false,
-    "duplicate_group": null,
-    "category": "investment_commitment",
-    "brand_name": "Groww",
-    "explanation": "SIP set up through the Groww platform."
-  },
-  {
-    "id": "chg_b6e4206a8544",
-    "bank_account_id": "bank_hdfc",
-    "channel": "upi",
-    "merchant_key": "spotify.bdsi@hdfcbank",
-    "raw_descriptor": "UPI-SPOTIFY INDIA-spotify.bdsi@hdfcbank-HDFC0000001-528310-SUBSCRIPTION",
-    "vpa": "spotify.bdsi@hdfcbank",
-    "occurrences": [
-      {
-        "date": "2026-03-12",
-        "amount": 119.0
-      },
-      {
-        "date": "2026-04-12",
-        "amount": 119.0
-      },
-      {
-        "date": "2026-05-12",
-        "amount": 119.0
-      },
-      {
-        "date": "2026-06-12",
-        "amount": 119.0
-      },
-      {
-        "date": "2026-07-12",
-        "amount": 119.0
-      },
-      {
-        "date": "2026-08-12",
-        "amount": 119.0
-      }
-    ],
-    "representative_amount": 119.0,
-    "cadence": "monthly",
-    "confidence": "HIGH",
-    "distinct_months": 6,
-    "median_gap_days": 31,
-    "amount_stable": true,
-    "price_creep": false,
-    "price_segments": [
-      {
-        "amount": 119.0,
-        "from": "2026-03-12",
-        "to": "2026-08-12",
-        "count": 6
-      }
-    ],
-    "status": "active",
-    "missed_payment": false,
-    "total_amount": 714.0,
-    "first_seen": "2026-03-12",
-    "last_seen": "2026-08-12",
-    "occurrence_count": 6,
-    "internal_transfer_hint": false,
-    "category_hint": "subscription_bill",
-    "duplicate": true,
-    "cross_account_duplicate": true,
-    "duplicate_group": "dup_c6eb549d78e4",
-    "category": "subscription_bill",
-    "brand_name": "Spotify",
-    "explanation": "Music streaming subscription billed by UPI AutoPay."
-  },
-  {
-    "id": "chg_fd385f49b2b7",
+    "id": "chg_a23011dc3d50",
     "bank_account_id": "bank_hdfc",
     "channel": "ach",
     "merchant_key": "netflix entertainment services",
@@ -353,6 +239,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": true,
     "price_segments": [
       {
@@ -376,6 +265,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": "subscription_bill",
+    "mandate": true,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -384,7 +274,7 @@
     "explanation": "Video streaming subscription (price increased during the window)."
   },
   {
-    "id": "chg_7fdc549740e5",
+    "id": "chg_fc63ae559d99",
     "bank_account_id": "bank_hdfc",
     "channel": "ach",
     "merchant_key": "razorpaysoftwarepriv",
@@ -422,6 +312,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -439,6 +332,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": null,
+    "mandate": false,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -447,7 +341,397 @@
     "explanation": "A software subscription collected through the Razorpay aggregator."
   },
   {
-    "id": "chg_1e7b0578f9c1",
+    "id": "chg_de617349d270",
+    "bank_account_id": "bank_hdfc",
+    "channel": "ach",
+    "merchant_key": "hdfc recurring deposit",
+    "raw_descriptor": "ACH D- HDFC RECURRING DEPOSIT-RD00219",
+    "vpa": null,
+    "occurrences": [
+      {
+        "date": "2026-03-28",
+        "amount": 3000.0
+      },
+      {
+        "date": "2026-04-28",
+        "amount": 3000.0
+      },
+      {
+        "date": "2026-05-28",
+        "amount": 3000.0
+      },
+      {
+        "date": "2026-06-28",
+        "amount": 3000.0
+      },
+      {
+        "date": "2026-07-28",
+        "amount": 3000.0
+      },
+      {
+        "date": "2026-08-28",
+        "amount": 3000.0
+      }
+    ],
+    "representative_amount": 3000.0,
+    "cadence": "monthly",
+    "confidence": "HIGH",
+    "distinct_months": 6,
+    "median_gap_days": 31,
+    "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
+    "price_creep": false,
+    "price_segments": [
+      {
+        "amount": 3000.0,
+        "from": "2026-03-28",
+        "to": "2026-08-28",
+        "count": 6
+      }
+    ],
+    "status": "active",
+    "missed_payment": false,
+    "total_amount": 18000.0,
+    "first_seen": "2026-03-28",
+    "last_seen": "2026-08-28",
+    "occurrence_count": 6,
+    "internal_transfer_hint": false,
+    "category_hint": "investment_commitment",
+    "mandate": false,
+    "duplicate": false,
+    "cross_account_duplicate": false,
+    "duplicate_group": null,
+    "category": "investment_commitment",
+    "brand_name": "HDFC Recurring Deposit",
+    "explanation": "Monthly recurring deposit contribution."
+  },
+  {
+    "id": "chg_f102aa1085b9",
+    "bank_account_id": "bank_hdfc",
+    "channel": "upi",
+    "merchant_key": "rahul.mehta@okaxis",
+    "raw_descriptor": "UPI-RAHUL MEHTA-rahul.mehta@okaxis-FUND TRANSFER",
+    "vpa": "rahul.mehta@okaxis",
+    "occurrences": [
+      {
+        "date": "2026-03-02",
+        "amount": 15000.0
+      },
+      {
+        "date": "2026-04-02",
+        "amount": 15000.0
+      },
+      {
+        "date": "2026-05-02",
+        "amount": 15000.0
+      },
+      {
+        "date": "2026-06-02",
+        "amount": 15000.0
+      },
+      {
+        "date": "2026-07-02",
+        "amount": 15000.0
+      },
+      {
+        "date": "2026-08-02",
+        "amount": 15000.0
+      }
+    ],
+    "representative_amount": 15000.0,
+    "cadence": "monthly",
+    "confidence": "HIGH",
+    "distinct_months": 6,
+    "median_gap_days": 31,
+    "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
+    "price_creep": false,
+    "price_segments": [
+      {
+        "amount": 15000.0,
+        "from": "2026-03-02",
+        "to": "2026-08-02",
+        "count": 6
+      }
+    ],
+    "status": "active",
+    "missed_payment": false,
+    "total_amount": 90000.0,
+    "first_seen": "2026-03-02",
+    "last_seen": "2026-08-02",
+    "occurrence_count": 6,
+    "internal_transfer_hint": false,
+    "category_hint": null,
+    "mandate": false,
+    "duplicate": false,
+    "cross_account_duplicate": false,
+    "duplicate_group": null,
+    "category": "vendor_noise",
+    "brand_name": "Transfer to own account",
+    "explanation": "A transfer to your own linked account, not a subscription."
+  },
+  {
+    "id": "chg_9e71130d22b1",
+    "bank_account_id": "bank_hdfc",
+    "channel": "upi",
+    "merchant_key": "dailyhunt@ybl",
+    "raw_descriptor": "UPI-AUTOPAY-DAILYHUNT-dailyhunt@ybl-NEWS",
+    "vpa": "dailyhunt@ybl",
+    "occurrences": [
+      {
+        "date": "2026-03-06",
+        "amount": 49.0
+      },
+      {
+        "date": "2026-04-06",
+        "amount": 49.0
+      },
+      {
+        "date": "2026-05-06",
+        "amount": 49.0
+      },
+      {
+        "date": "2026-06-06",
+        "amount": 49.0
+      },
+      {
+        "date": "2026-07-06",
+        "amount": 49.0
+      },
+      {
+        "date": "2026-08-06",
+        "amount": 49.0
+      }
+    ],
+    "representative_amount": 49.0,
+    "cadence": "monthly",
+    "confidence": "HIGH",
+    "distinct_months": 6,
+    "median_gap_days": 31,
+    "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
+    "price_creep": false,
+    "price_segments": [
+      {
+        "amount": 49.0,
+        "from": "2026-03-06",
+        "to": "2026-08-06",
+        "count": 6
+      }
+    ],
+    "status": "active",
+    "missed_payment": false,
+    "total_amount": 294.0,
+    "first_seen": "2026-03-06",
+    "last_seen": "2026-08-06",
+    "occurrence_count": 6,
+    "internal_transfer_hint": false,
+    "category_hint": null,
+    "mandate": true,
+    "duplicate": false,
+    "cross_account_duplicate": false,
+    "duplicate_group": null,
+    "category": "subscription_bill",
+    "brand_name": "Dailyhunt",
+    "explanation": "A low-value news-app charge, below the tracking threshold."
+  },
+  {
+    "id": "chg_f1fcac0ff561",
+    "bank_account_id": "bank_hdfc",
+    "channel": "upi",
+    "merchant_key": "irctc@sbi",
+    "raw_descriptor": "UPI-IRCTC-irctc@sbi-TICKET",
+    "vpa": "irctc@sbi",
+    "occurrences": [
+      {
+        "date": "2026-03-09",
+        "amount": 500.0
+      },
+      {
+        "date": "2026-04-25",
+        "amount": 500.0
+      },
+      {
+        "date": "2026-07-08",
+        "amount": 500.0
+      }
+    ],
+    "representative_amount": 500.0,
+    "cadence": "bi-monthly",
+    "confidence": "MEDIUM",
+    "distinct_months": 3,
+    "median_gap_days": 60.5,
+    "amount_stable": true,
+    "dom_consistent": false,
+    "dow_consistent": false,
+    "gap_consistent": false,
+    "price_creep": false,
+    "price_segments": [
+      {
+        "amount": 500.0,
+        "from": "2026-03-09",
+        "to": "2026-07-08",
+        "count": 3
+      }
+    ],
+    "status": "active",
+    "missed_payment": false,
+    "total_amount": 1500.0,
+    "first_seen": "2026-03-09",
+    "last_seen": "2026-07-08",
+    "occurrence_count": 3,
+    "internal_transfer_hint": false,
+    "category_hint": null,
+    "mandate": false,
+    "duplicate": false,
+    "cross_account_duplicate": false,
+    "duplicate_group": null,
+    "category": "vendor_noise",
+    "brand_name": "IRCTC",
+    "explanation": "Railway ticket booking, billed irregularly rather than on a schedule."
+  },
+  {
+    "id": "chg_3b1d1f48b758",
+    "bank_account_id": "bank_hdfc",
+    "channel": "upi",
+    "merchant_key": "groww.axis@okicici",
+    "raw_descriptor": "UPI-AUTOPAY-GROWW-groww.axis@okicici-GROW0001-SIP",
+    "vpa": "groww.axis@okicici",
+    "occurrences": [
+      {
+        "date": "2026-03-10",
+        "amount": 10000.0
+      },
+      {
+        "date": "2026-04-10",
+        "amount": 10000.0
+      },
+      {
+        "date": "2026-05-10",
+        "amount": 10000.0
+      },
+      {
+        "date": "2026-06-10",
+        "amount": 10000.0
+      },
+      {
+        "date": "2026-07-10",
+        "amount": 10000.0
+      },
+      {
+        "date": "2026-08-10",
+        "amount": 10000.0
+      }
+    ],
+    "representative_amount": 10000.0,
+    "cadence": "monthly",
+    "confidence": "HIGH",
+    "distinct_months": 6,
+    "median_gap_days": 31,
+    "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
+    "price_creep": false,
+    "price_segments": [
+      {
+        "amount": 10000.0,
+        "from": "2026-03-10",
+        "to": "2026-08-10",
+        "count": 6
+      }
+    ],
+    "status": "active",
+    "missed_payment": false,
+    "total_amount": 60000.0,
+    "first_seen": "2026-03-10",
+    "last_seen": "2026-08-10",
+    "occurrence_count": 6,
+    "internal_transfer_hint": false,
+    "category_hint": "investment_commitment",
+    "mandate": true,
+    "duplicate": false,
+    "cross_account_duplicate": false,
+    "duplicate_group": null,
+    "category": "investment_commitment",
+    "brand_name": "Groww",
+    "explanation": "SIP set up through the Groww platform."
+  },
+  {
+    "id": "chg_ba71abe2311d",
+    "bank_account_id": "bank_hdfc",
+    "channel": "upi",
+    "merchant_key": "spotify.bdsi@hdfcbank",
+    "raw_descriptor": "UPI-SPOTIFY INDIA-spotify.bdsi@hdfcbank-HDFC0000001-528310-SUBSCRIPTION",
+    "vpa": "spotify.bdsi@hdfcbank",
+    "occurrences": [
+      {
+        "date": "2026-03-12",
+        "amount": 119.0
+      },
+      {
+        "date": "2026-04-12",
+        "amount": 119.0
+      },
+      {
+        "date": "2026-05-12",
+        "amount": 119.0
+      },
+      {
+        "date": "2026-06-12",
+        "amount": 119.0
+      },
+      {
+        "date": "2026-07-12",
+        "amount": 119.0
+      },
+      {
+        "date": "2026-08-12",
+        "amount": 119.0
+      }
+    ],
+    "representative_amount": 119.0,
+    "cadence": "monthly",
+    "confidence": "HIGH",
+    "distinct_months": 6,
+    "median_gap_days": 31,
+    "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
+    "price_creep": false,
+    "price_segments": [
+      {
+        "amount": 119.0,
+        "from": "2026-03-12",
+        "to": "2026-08-12",
+        "count": 6
+      }
+    ],
+    "status": "active",
+    "missed_payment": false,
+    "total_amount": 714.0,
+    "first_seen": "2026-03-12",
+    "last_seen": "2026-08-12",
+    "occurrence_count": 6,
+    "internal_transfer_hint": false,
+    "category_hint": "subscription_bill",
+    "mandate": false,
+    "duplicate": true,
+    "cross_account_duplicate": true,
+    "duplicate_group": "dup_151fb04c914a",
+    "category": "subscription_bill",
+    "brand_name": "Spotify",
+    "explanation": "Music streaming subscription billed by UPI AutoPay."
+  },
+  {
+    "id": "chg_6a967aa3a675",
     "bank_account_id": "bank_hdfc",
     "channel": "upi",
     "merchant_key": "smallcase.pay@yesbank",
@@ -485,6 +769,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -502,6 +789,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": null,
+    "mandate": true,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -510,73 +798,10 @@
     "explanation": "Flat monthly fee to the smallcase investing platform (you may prefer to tag this as an investment)."
   },
   {
-    "id": "chg_3c787f2647c6",
-    "bank_account_id": "bank_hdfc",
-    "channel": "ach",
-    "merchant_key": "hdfc recurring deposit rd",
-    "raw_descriptor": "ACH D- HDFC RECURRING DEPOSIT-RD00219",
-    "vpa": null,
-    "occurrences": [
-      {
-        "date": "2026-03-28",
-        "amount": 3000.0
-      },
-      {
-        "date": "2026-04-28",
-        "amount": 3000.0
-      },
-      {
-        "date": "2026-05-28",
-        "amount": 3000.0
-      },
-      {
-        "date": "2026-06-28",
-        "amount": 3000.0
-      },
-      {
-        "date": "2026-07-28",
-        "amount": 3000.0
-      },
-      {
-        "date": "2026-08-28",
-        "amount": 3000.0
-      }
-    ],
-    "representative_amount": 3000.0,
-    "cadence": "monthly",
-    "confidence": "HIGH",
-    "distinct_months": 6,
-    "median_gap_days": 31,
-    "amount_stable": true,
-    "price_creep": false,
-    "price_segments": [
-      {
-        "amount": 3000.0,
-        "from": "2026-03-28",
-        "to": "2026-08-28",
-        "count": 6
-      }
-    ],
-    "status": "active",
-    "missed_payment": false,
-    "total_amount": 18000.0,
-    "first_seen": "2026-03-28",
-    "last_seen": "2026-08-28",
-    "occurrence_count": 6,
-    "internal_transfer_hint": false,
-    "category_hint": "investment_commitment",
-    "duplicate": false,
-    "cross_account_duplicate": false,
-    "duplicate_group": null,
-    "category": "investment_commitment",
-    "brand_name": "HDFC Recurring Deposit",
-    "explanation": "Monthly recurring deposit contribution."
-  },
-  {
-    "id": "chg_632f578f862e",
+    "id": "chg_5bf4bc084cb1",
     "bank_account_id": "bank_icici",
     "channel": "ach",
-    "merchant_key": "aditya birla sun life mf sip bsl",
+    "merchant_key": "aditya birla sun life mf sip",
     "raw_descriptor": "ACH D- ADITYA BIRLA SUN LIFE MF-SIP-BSL9920",
     "vpa": null,
     "occurrences": [
@@ -611,6 +836,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -628,6 +856,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": "investment_commitment",
+    "mandate": false,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -636,7 +865,7 @@
     "explanation": "Monthly SIP into an Aditya Birla Sun Life mutual fund."
   },
   {
-    "id": "chg_8d94739f401e",
+    "id": "chg_be7c9dbeac8b",
     "bank_account_id": "bank_icici",
     "channel": "upi",
     "merchant_key": "google.yt@okaxis",
@@ -674,6 +903,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -691,6 +923,7 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": "subscription_bill",
+    "mandate": true,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
@@ -699,7 +932,7 @@
     "explanation": "Ad-free YouTube and YouTube Music subscription."
   },
   {
-    "id": "chg_f40c08163d00",
+    "id": "chg_e5b753dce9f2",
     "bank_account_id": "bank_icici",
     "channel": "upi",
     "merchant_key": "spotify.bdsi@hdfcbank",
@@ -737,6 +970,9 @@
     "distinct_months": 6,
     "median_gap_days": 31,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -754,9 +990,10 @@
     "occurrence_count": 6,
     "internal_transfer_hint": false,
     "category_hint": "subscription_bill",
+    "mandate": true,
     "duplicate": true,
     "cross_account_duplicate": true,
-    "duplicate_group": "dup_c6eb549d78e4",
+    "duplicate_group": "dup_151fb04c914a",
     "category": "subscription_bill",
     "brand_name": "Spotify",
     "explanation": "Music streaming subscription billed by UPI AutoPay."

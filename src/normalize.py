@@ -183,6 +183,30 @@ def parse_date(s: str) -> datetime.date | None:
     return None
 
 
+_HOLDER_RE = re.compile(
+    r"(?i)\b(account\s*holder|a/?c\s*holder|holder\s*name|customer\s*name)\b\s*[:\-]?\s*(.+)")
+
+
+def extract_account_holder(grid: list[list[str]]) -> list[str]:
+    """Best-effort account-holder name(s) from the statement preamble, lower-cased.
+
+    Used ONLY in-session to spot transfers between the user's own accounts (a
+    self-transfer carries the holder's name in the narration). The name is never
+    stored and never sent to the LLM. Only full names (two or more words) are
+    returned, to avoid a single common token matching an unrelated merchant.
+    """
+    names = []
+    for row in grid[:15]:
+        for cell in row:
+            m = _HOLDER_RE.search(cell or "")
+            if not m:
+                continue
+            name = re.sub(r"[^A-Za-z .]", "", m.group(2)).strip().lower()
+            if len(name.split()) >= 2 and 3 <= len(name) <= 60:
+                names.append(name)
+    return names
+
+
 # --- mapping ----------------------------------------------------------------
 
 # amount_flag: which flag value means money-out. signed: which sign means money-out.

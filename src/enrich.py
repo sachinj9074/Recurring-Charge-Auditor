@@ -23,29 +23,47 @@ from src import schema
 CATEGORIES = ("subscription_bill", "investment_commitment", "personal_p2p", "vendor_noise")
 
 _SYSTEM = (
-    "You label recurring bank charges for an Indian audit tool. For each charge "
-    "you are given an id, a raw bank descriptor, an optional UPI VPA, the channel, "
-    "one sample amount, and the cadence. For each, return: brand_name (the real "
-    "merchant/brand the descriptor refers to, e.g. 'Spotify', 'Axis Mutual Fund'), "
-    "category (exactly one of: subscription_bill, investment_commitment, "
-    "personal_p2p, vendor_noise), and explanation (one short plain-language "
-    "sentence, no financial advice). Rules: a SIP, mutual fund, recurring deposit, "
-    "NPS, or clearing-corporation debit is investment_commitment, never a "
-    "subscription. A person-to-person UPI transfer is personal_p2p. Do NOT output "
-    "any numbers, amounts, dates, or cadences; do NOT recompute anything. Return "
-    "ONLY a JSON array of objects with keys id, brand_name, category, explanation."
+    "You categorize recurring bank charges for an Indian personal-finance audit "
+    "tool. Each charge has an id, a raw bank descriptor, an optional UPI VPA, the "
+    "channel, an amount range, the cadence, and how many times and distinct months "
+    "it was seen. For each, return brand_name (the real merchant/brand, e.g. "
+    "'Spotify', 'Axis Mutual Fund', 'Swiggy'), category (exactly one of the four "
+    "below), and explanation (one short plain sentence, no financial advice).\n"
+    "Categories, decide carefully:\n"
+    "- subscription_bill: a company/service billed on a schedule, e.g. streaming, "
+    "SaaS, telecom, broadband, electricity, gas, insurance, a gym, a news app.\n"
+    "- investment_commitment: a SIP, mutual fund, recurring deposit, NPS, PPF, "
+    "stocks, or a clearing-corporation debit. Never call these a subscription.\n"
+    "- personal_p2p: a transfer to an individual person (a personal name or VPA), "
+    "especially when the amount varies. Rent to a landlord also belongs here.\n"
+    "- vendor_noise: everyday spending that happens to repeat but is NOT a "
+    "subscription, e.g. food delivery (Swiggy, Zomato), groceries, fuel, autos, "
+    "cabs, railway or flight tickets, restaurants.\n"
+    "Use the amount range and cadence as evidence: a stable amount on a clean "
+    "monthly or annual schedule points to a subscription; a varying amount or "
+    "everyday-spend merchant points to vendor_noise or personal_p2p. Do NOT output "
+    "any numbers, amounts, dates, or cadences, and do NOT recompute anything. "
+    "Return ONLY a JSON array of objects with keys id, brand_name, category, explanation."
 )
 
 
 def minimize(charge) -> dict:
-    """The minimized, PII-light view of a charge that may reach the model."""
+    """The minimized, PII-light view of a charge that may reach the model. Amounts
+    are allowed to reach the LLM; what the LLM returns is still only labels."""
+    amounts = [float(o.amount) for o in getattr(charge, "occurrences", [])]
+    lo = round(min(amounts), 2) if amounts else float(charge.representative_amount)
+    hi = round(max(amounts), 2) if amounts else float(charge.representative_amount)
     return {
         "id": charge.id,
         "descriptor": charge.raw_descriptor,
         "vpa": charge.vpa,
         "channel": charge.channel,
-        "sample_amount": float(charge.representative_amount),
+        "amount_min": lo,
+        "amount_max": hi,
         "cadence": charge.cadence,
+        "times_seen": charge.occurrence_count,
+        "distinct_months": charge.distinct_months,
+        "amount_stable": charge.amount_stable,
     }
 
 
@@ -77,7 +95,9 @@ def _enrich_batch(batch, complete) -> list:
     items = [minimize(c) for c in batch]
     user = ("Charges:\n" + json.dumps(items, ensure_ascii=False)
             + "\n\nReturn the JSON array of {id, brand_name, category, explanation}.")
-    raw = complete(system=_SYSTEM, user=user, tier="fast", max_tokens=2000)
+    # Judgment tier: categorizing subscription vs vendor vs personal is the call
+    # that most affects how tight the primary list is, so it is worth the stronger model.
+    raw = complete(system=_SYSTEM, user=user, tier="judgment", max_tokens=3000)
     if isinstance(raw, dict) and "charges" in raw:   # tolerate a wrapped array
         raw = raw["charges"]
     if not isinstance(raw, list):

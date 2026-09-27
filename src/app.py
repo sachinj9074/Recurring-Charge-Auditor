@@ -18,8 +18,8 @@ import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src import (accounts, auth, charges as charges_mod, detect, enrich, ingest,  # noqa: E402
-                 mapping, normalize, render, store as store_mod, users)
+from src import (accounts, auth, charges as charges_mod, classify, detect, enrich,  # noqa: E402
+                 ingest, mapping, normalize, render, store as store_mod, users)
 from src.storage import InMemoryBackend  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -72,6 +72,10 @@ def _load_demo_backend(user_id: str) -> InMemoryBackend:
             with open(path, encoding="utf-8") as f:
                 for rec in json.load(f):
                     be.put(f"{coll}/{rec['id']}.json", json.dumps(rec).encode("utf-8"))
+    sid = os.path.join(base, "self_ids.json")
+    if os.path.exists(sid):
+        with open(sid, encoding="utf-8") as f:
+            be.put("meta/self_ids.json", json.dumps(json.load(f)).encode("utf-8"))
     return be
 
 
@@ -187,11 +191,26 @@ def _sidebar(store) -> None:
         else:
             st.caption(f"MVP limit is {accounts.MAX_BANK_ACCOUNTS} accounts. Remove one to add another.")
 
+        st.divider()
+        with st.expander("Start over"):
+            st.caption("Clear every detected charge. Your login and bank accounts stay; only the "
+                       "derived charge list is removed. Re-upload a statement to rebuild it.")
+            confirm = st.checkbox("Yes, clear all my detected charges", key="confirm_clear")
+            if st.button("Clear all charges", disabled=not confirm, key="clear_all"):
+                removed = charges_mod.clear_charges(store)
+                st.success(f"Cleared {removed} charges.")
+                st.rerun()
+
 
 # --- upload + mapping checkpoint --------------------------------------------
 
 def _upload_section(store) -> None:
     a = st.session_state.auth
+
+    # Filters live with the inputs, upfront, so the user sets the value/history rules
+    # before (and alongside) uploading. The review reads the same session_state.
+    st.session_state["_settings"] = render.settings_control()
+
     accts = accounts.list_accounts(store)
     if a["mode"] != "demo" and not accts:
         st.info("Add a bank account in the sidebar to upload a statement.")
@@ -291,6 +310,10 @@ def _run_detection(store, grid, m, account_id) -> None:
         st.error("No transactions to detect. Adjust the mapping.")
         return
 
+    # Capture the holder name (transient) to spot transfers between the user's own
+    # accounts. Stored per user (encrypted), never sent to the LLM.
+    charges_mod.add_self_ids(store, normalize.extract_account_holder(grid))
+
     if a["mode"] == "demo":
         cap = int(os.getenv("DEMO_LIVE_UPLOADS", "2"))
         if st.session_state.demo_uploads >= cap:
@@ -320,7 +343,9 @@ def _run_detection(store, grid, m, account_id) -> None:
             st.info("Daily processing limit reached, so merchant naming was skipped. "
                     "Detection still ran.")
 
-    charges_mod.persist_detection(store, detected)
+    # Replace this account's prior charges so re-uploading a statement is idempotent
+    # (never doubles). account_id is set for real accounts and demo profiles alike.
+    charges_mod.persist_detection(store, detected, replace_bank_account_id=account_id)
     st.session_state.pending = None          # discard the raw grid
     st.success(f"Found {len(detected)} recurring charges. The raw statement has been discarded; "
                "only the derived list is kept.")
@@ -335,7 +360,9 @@ def _review_section(store) -> None:
     if not all_c:
         st.info("No charges yet. Upload a statement above to get started.")
         return
-    render.two_lens(store, all_c)
+    settings = st.session_state.get("_settings") or classify.Settings()
+    self_ids = charges_mod.load_self_ids(store)
+    render.funnel_view(store, all_c, settings, self_ids)
 
 
 # --- main -------------------------------------------------------------------

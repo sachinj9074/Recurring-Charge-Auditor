@@ -91,6 +91,31 @@ def test_aggregator_mandates_stay_separate():
     assert all(not c.duplicate for c in charges)     # different mandates, not dupes
 
 
+def test_aggregator_reference_codes_do_not_shatter_identity():
+    # Regression: an aggregator tags each debit with a unique alphanumeric reference
+    # (INDIAN CLEARING CORP-0000GMGO1HON). The identity must ignore the code so the
+    # mandates group, instead of every debit becoming its own dropped singleton.
+    a = detect.merchant_identity("ACH D- INDIAN CLEARING CORP-0000GMGO1HON")
+    b = detect.merchant_identity("ACH D- INDIAN CLEARING CORP-0000FWJFIUDE")
+    assert a[0] == detect.ACH and a[1] == b[1] == "indian clearing corp"
+    # A recurring same-amount, same-day mandate is detected across those refs.
+    txns = [tx(2026, m, 3, f"ACH D- INDIAN CLEARING CORP-0000REF{m}XY", 500) for m in (3, 4, 5, 6)]
+    charges = detect.detect_charges(txns)
+    assert len(charges) == 1 and charges[0].occurrence_count == 4
+
+
+def test_ach_same_amount_different_day_not_duplicate():
+    # Two aggregator mandates at the same amount on different days are distinct SIPs,
+    # not duplicates of each other. The digit-bearing refs drop, so both normalize to
+    # the same identity ('indian clearing corp') and only the day separates them.
+    txns = ([tx(2026, m, 13, "ACH D- INDIAN CLEARING CORP-0000AA13", 2000) for m in (4, 5, 6)]
+            + [tx(2026, m, 5, "ACH D- INDIAN CLEARING CORP-0000BB05", 2000) for m in (4, 5, 6)])
+    charges = detect.detect_charges(txns)
+    assert len(charges) == 2
+    assert {c.merchant_key for c in charges} == {"indian clearing corp"}
+    assert all(not c.duplicate for c in charges)
+
+
 def test_price_creep_merges_into_one_charge():
     txns = (_monthly("ACH D- NETFLIX-MANDATE", 499, [3, 4, 5], day=15)
             + _monthly("ACH D- NETFLIX-MANDATE", 649, [6, 7, 8], day=15))
@@ -101,6 +126,46 @@ def test_price_creep_merges_into_one_charge():
     assert [s["amount"] for s in c.price_segments] == [499.0, 649.0]
     assert float(c.representative_amount) == 649.0        # current price
     assert c.confidence == "HIGH"                         # still clearly recurring
+
+
+def test_variable_amount_upi_is_not_a_stable_charge():
+    # Regression: scattered amounts to one VPA (personal P2P / QR spend) must NOT be
+    # manufactured into a stable, recurring charge by chaining single payments.
+    txns = [tx(2026, 3, 9, "UPI-AKSHAY-akshay@okhdfcbank", 456),
+            tx(2026, 5, 4, "UPI-AKSHAY-akshay@okhdfcbank", 810),
+            tx(2026, 7, 7, "UPI-AKSHAY-akshay@okhdfcbank", 470),
+            tx(2026, 8, 22, "UPI-AKSHAY-akshay@okhdfcbank", 560)]
+    charges = detect.detect_charges(txns)
+    assert len(charges) == 1                       # one merchant identity, one charge
+    c = charges[0]
+    assert not c.amount_stable and not c.price_creep   # variable, not a subscription
+
+
+def test_upi_sustained_price_step_is_creep():
+    # A real price change on a UPI subscription (each level sustained) is one charge.
+    txns = (_monthly("UPI-NEWS-news@ybl", 199, [3, 4, 5])
+            + _monthly("UPI-NEWS-news@ybl", 249, [6, 7, 8]))
+    charges = detect.detect_charges(txns)
+    assert len(charges) == 1
+    c = charges[0]
+    assert c.price_creep and c.occurrence_count == 6
+    assert float(c.representative_amount) == 249.0
+
+
+def test_two_different_single_payments_do_not_recur():
+    # Two one-off payments of different amounts to one VPA is not a price change and
+    # not a subscription: it is variable spend, left for the funnel to set aside.
+    txns = [tx(2026, 5, 8, "UPI-X-x@ybl", 30000), tx(2026, 7, 10, "UPI-X-x@ybl", 80000)]
+    charges = detect.detect_charges(txns)
+    assert len(charges) == 1 and not charges[0].amount_stable and not charges[0].price_creep
+
+
+def test_mandate_flag_detected_from_descriptor():
+    # The rail marking a standing instruction is captured as a flag for the funnel.
+    m = detect.detect_charges(_monthly("UPI-AUTOPAY-NOVI-noviautopay.rzp@hdfcbank", 149, [3, 4]))
+    assert m[0].mandate is True
+    plain = detect.detect_charges(_monthly("UPI-SPOTIFY-spotify@hdfcbank", 119, [3, 4]))
+    assert plain[0].mandate is False
 
 
 def test_cross_account_duplicate():

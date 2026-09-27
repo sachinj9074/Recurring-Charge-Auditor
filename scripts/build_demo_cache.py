@@ -71,13 +71,20 @@ CURATED = [
      "Monthly recurring deposit contribution."),
     ("smallcase",      None, "smallcase",                  "subscription_bill",
      "Flat monthly fee to the smallcase investing platform (you may prefer to tag this as an investment)."),
+    # Noise merchants (labelled for a tidy demo; the funnel sets them aside deterministically).
+    ("rahul.mehta@okaxis", None, "Transfer to own account", "vendor_noise",
+     "A transfer to your own linked account, not a subscription."),
+    ("dailyhunt",      None, "Dailyhunt",                  "subscription_bill",
+     "A low-value news-app charge, below the tracking threshold."),
+    ("irctc",          None, "IRCTC",                      "vendor_noise",
+     "Railway ticket booking, billed irregularly rather than on a schedule."),
 ]
 
 
 def _load_txns(file: str, account_id: str):
     grid = ingest.read_table(open(os.path.join(SAMPLES, file), "rb").read(), file)
     m = normalize.infer_mapping(grid)
-    return normalize.apply_mapping(grid, m, account_id)
+    return grid, normalize.apply_mapping(grid, m, account_id)
 
 
 def _curated_results(charges) -> list[dict]:
@@ -97,9 +104,11 @@ def build(live: bool = False) -> None:
     os.makedirs(DEMO_USERS, exist_ok=True)
     demo_users = []
     for uid, prof in PROFILES.items():
-        txns, accounts = [], []
+        txns, accounts, self_names = [], [], set()
         for a in prof["accounts"]:
-            txns += _load_txns(a["file"], a["id"])
+            grid, t = _load_txns(a["file"], a["id"])
+            txns += t
+            self_names.update(normalize.extract_account_holder(grid))
             accounts.append({"id": a["id"], "label": a["label"], "bank_name": a["bank_name"],
                              "account_type": None, "created": "2026-09-01T00:00:00"})
         charges = detect.detect_charges(txns)
@@ -114,6 +123,8 @@ def build(live: bool = False) -> None:
             json.dump(accounts, f, indent=2, ensure_ascii=False)
         with open(os.path.join(outdir, "charges.json"), "w", encoding="utf-8") as f:
             json.dump([c.to_dict() for c in charges], f, indent=2, ensure_ascii=False)
+        with open(os.path.join(outdir, "self_ids.json"), "w", encoding="utf-8") as f:
+            json.dump({"id": "self_ids", "names": sorted(self_names)}, f, indent=2, ensure_ascii=False)
 
         demo_users.append({
             "user_id": uid, "name": prof["name"],

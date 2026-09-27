@@ -31,6 +31,32 @@ def test_persist_adds_review_fields():
     assert all(c["is_internal_transfer"] is False for c in saved)
 
 
+def test_redetecting_replaces_instead_of_appending():
+    # The bug this guards against: re-uploading the same statement doubled every
+    # charge because each run gets fresh ids. Replacing by account keeps it idempotent.
+    s = _store()
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    first = charges.list_charges(s)
+    assert len(first) == 2
+    # Re-detect the identical statement for the same account.
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    again = charges.list_charges(s)
+    assert len(again) == 2                       # not 4
+    # A different account's charges are left untouched.
+    charges.persist_detection(s, _detected())    # account 'a', append (no replace)
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    assert len(charges.list_charges(s)) == 2
+
+
+def test_clear_charges_all_and_by_account():
+    s = _store()
+    charges.persist_detection(s, _detected())
+    assert len(charges.list_charges(s)) == 2
+    assert charges.clear_charges(s, bank_account_id="zzz") == 0   # no match, nothing cleared
+    assert charges.clear_charges(s, bank_account_id="a") == 2     # this account cleared
+    assert charges.list_charges(s) == []
+
+
 def test_status_category_and_transfer_mutations():
     s = _store()
     charges.persist_detection(s, _detected())

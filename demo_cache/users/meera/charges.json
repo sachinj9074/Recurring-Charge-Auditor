@@ -1,6 +1,6 @@
 [
   {
-    "id": "chg_9c9fea1ac78b",
+    "id": "chg_d7d8ab33baf1",
     "bank_account_id": "bank_meera",
     "channel": "upi",
     "merchant_key": "apple.in@hdfcbank",
@@ -26,6 +26,9 @@
     "distinct_months": 3,
     "median_gap_days": 30.5,
     "amount_stable": true,
+    "dom_consistent": true,
+    "dow_consistent": false,
+    "gap_consistent": true,
     "price_creep": false,
     "price_segments": [
       {
@@ -43,6 +46,7 @@
     "occurrence_count": 3,
     "internal_transfer_hint": false,
     "category_hint": "subscription_bill",
+    "mandate": true,
     "duplicate": false,
     "cross_account_duplicate": false,
     "duplicate_group": null,
