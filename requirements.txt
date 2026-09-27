@@ -1,0 +1,19 @@
+# Core
+streamlit>=1.40
+anthropic>=0.40
+
+# Schema and config
+jsonschema>=4.23
+python-dotenv>=1.0
+
+# Tabular statement ingestion (CSV / XLS / XLSX)
+pandas>=2.2
+openpyxl>=3.1        # .xlsx reading for pandas
+xlrd>=2.0            # legacy .xls reading
+
+# Encryption (per-user store) and cloud storage (hosted deploy only)
+cryptography>=42.0   # AES-GCM: per-user store encryption
+boto3>=1.34          # Cloudflare R2 via its S3-compatible API (hosted deploy only; local runs never import it)
+
+# Tests
+pytest>=8.3

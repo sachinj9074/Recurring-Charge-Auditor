@@ -1,0 +1,18 @@
+{
+  "_comment": "Deterministic keyword hints for a provisional category, used only as a fallback and as the pre-fill the LLM enrichment and the user can override. It exists so that investments are protected from being called leaks even when the LLM is unavailable. Matching is case-insensitive substring against the merchant identity/descriptor.",
+  "investment_commitment": [
+    "mutual fund", "mutualfund", " mf", "mf ", "sip", "systematic investment",
+    "clearing corp", "clearing corporation", "iccl", "recurring deposit", "rd ",
+    "nps", "elss", "ppf", "sukanya", "zerodha", "groww", "kuvera", "coin",
+    "aditya birla sun life", "sun life", "hdfc amc", "icici pru", "nippon",
+    "sbi mf", "axis mf", "axis mutual", "uti mf", "kotak mf", "quant mf",
+    "parag parikh", "mirae", "edelweiss"
+  ],
+  "subscription_bill": [
+    "spotify", "netflix", "youtube", "prime", "hotstar", "disney", "sonyliv",
+    "zee5", "jiocinema", "apple", "google", "adobe", "microsoft", "office 365",
+    "dropbox", "notion", "canva", "linkedin", "audible", "kindle", "gaana",
+    "subscription", "recharge", "broadband", "electricity", "gas", "insurance",
+    "premium", "membership"
+  ]
+}

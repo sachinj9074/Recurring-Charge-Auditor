@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Column mapping",
+  "description": "How a statement grid's columns map to transaction fields, as proposed by the deterministic inferrer or the LLM fallback.",
+  "type": "object",
+  "required": ["header_row", "date_col", "desc_col", "scheme"],
+  "additionalProperties": false,
+  "properties": {
+    "header_row": {"type": "integer", "minimum": -1,
+      "description": "Row index of the header, or -1 when the grid has no header row."},
+    "date_col": {"type": "integer", "minimum": 0},
+    "desc_col": {"type": "integer", "minimum": 0},
+    "scheme": {"type": "string", "enum": ["two_column", "amount_flag", "signed"]},
+    "debit_col": {"type": ["integer", "null"], "minimum": 0},
+    "credit_col": {"type": ["integer", "null"], "minimum": 0},
+    "amount_col": {"type": ["integer", "null"], "minimum": 0},
+    "flag_col": {"type": ["integer", "null"], "minimum": 0},
+    "money_out": {"type": "string",
+      "description": "Direction convention. amount_flag: token meaning money-out. signed: 'negative' or 'positive'."}
+  }
+}

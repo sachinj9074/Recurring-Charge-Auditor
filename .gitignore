@@ -1,0 +1,29 @@
+# Secrets and environment
+.env
+.env.*
+!.env.example
+
+# Real user data and any PII output: never commit
+local_records/
+*.local.json
+
+# Streamlit local secrets (never commit; set these in the Streamlit Cloud UI)
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# eval run artifact (RESULTS.md is the committed summary)
+eval/eval_log.csv

@@ -1,0 +1,12 @@
+# Normalize line endings: store text as LF in the repo, check out native.
+* text=auto eol=lf
+
+# Treat sample statements as text too (they are CSV).
+*.csv text eol=lf
+
+# Binary assets (none yet, but keep them from being munged).
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+*.xls binary

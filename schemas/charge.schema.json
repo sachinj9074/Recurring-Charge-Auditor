@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Derived charge",
+  "description": "One detected recurring charge: deterministic detection output plus optional LLM enrichment (brand/category/explanation) and, later, the user's confirmation. No raw statement data or PII beyond the merchant descriptor is present.",
+  "type": "object",
+  "required": ["id", "bank_account_id", "channel", "merchant_key", "occurrences",
+               "representative_amount", "cadence", "confidence"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {"type": "string"},
+    "bank_account_id": {"type": ["string", "null"]},
+    "channel": {"type": "string", "enum": ["upi", "ach", "card", "other"]},
+    "merchant_key": {"type": "string"},
+    "raw_descriptor": {"type": "string"},
+    "vpa": {"type": ["string", "null"]},
+    "occurrences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "amount"],
+        "properties": {
+          "date": {"type": "string"},
+          "amount": {"type": "number"}
+        }
+      }
+    },
+    "representative_amount": {"type": "number"},
+    "cadence": {"type": "string",
+      "enum": ["weekly", "fortnightly", "monthly", "bi-monthly", "quarterly", "annual", "irregular"]},
+    "confidence": {"type": "string", "enum": ["HIGH", "MEDIUM", "LOW"]},
+    "distinct_months": {"type": "integer", "minimum": 0},
+    "median_gap_days": {"type": ["number", "null"]},
+    "amount_stable": {"type": "boolean"},
+    "price_creep": {"type": "boolean"},
+    "price_segments": {"type": "array"},
+    "status": {"type": "string", "enum": ["active", "stopped", "irregular"]},
+    "missed_payment": {"type": "boolean"},
+    "total_amount": {"type": "number"},
+    "first_seen": {"type": "string"},
+    "last_seen": {"type": "string"},
+    "occurrence_count": {"type": "integer", "minimum": 0},
+    "internal_transfer_hint": {"type": "boolean"},
+    "category_hint": {"type": ["string", "null"]},
+    "duplicate": {"type": "boolean"},
+    "cross_account_duplicate": {"type": "boolean"},
+    "duplicate_group": {"type": ["string", "null"]},
+    "category": {"type": ["string", "null"],
+      "enum": ["subscription_bill", "investment_commitment", "personal_p2p", "vendor_noise", null]},
+    "brand_name": {"type": ["string", "null"]},
+    "explanation": {"type": ["string", "null"]}
+  }
+}

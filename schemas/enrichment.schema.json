@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Charge enrichment item",
+  "description": "The ONLY thing the LLM is allowed to contribute per charge: a brand name, a category from a fixed set, and a plain-language explanation. It contains no numbers; all money math stays in deterministic detection.",
+  "type": "object",
+  "required": ["id", "brand_name", "category", "explanation"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string"},
+    "brand_name": {"type": "string", "minLength": 1},
+    "category": {"type": "string",
+      "enum": ["subscription_bill", "investment_commitment", "personal_p2p", "vendor_noise"]},
+    "explanation": {"type": "string"}
+  }
+}

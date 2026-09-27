@@ -1,0 +1,14 @@
+[
+  {
+    "user_id": "rahul",
+    "name": "Rahul Mehta",
+    "password_hash": "pbkdf2_sha256$120000$666426225d11079a8ba92e98afa26ede$c2d38f6d16f5af61a3be531d1759803a7c3e4f9c52f28c218d103ce102a9aa98",
+    "password_hint": "demo"
+  },
+  {
+    "user_id": "meera",
+    "name": "Meera Nair",
+    "password_hash": "pbkdf2_sha256$120000$776a50e1fc33f4d247835057e7a1459d$5810404378f961be0f342d57406e51e0407e9b1d46fd7c303a170ce6503ee9e1",
+    "password_hint": "demo"
+  }
+]

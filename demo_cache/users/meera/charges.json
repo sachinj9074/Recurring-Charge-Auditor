@@ -1,0 +1,53 @@
+[
+  {
+    "id": "chg_9c9fea1ac78b",
+    "bank_account_id": "bank_meera",
+    "channel": "upi",
+    "merchant_key": "apple.in@hdfcbank",
+    "raw_descriptor": "UPI-AUTOPAY-APPLE SERVICES-apple.in@hdfcbank-APL-01",
+    "vpa": "apple.in@hdfcbank",
+    "occurrences": [
+      {
+        "date": "2026-03-11",
+        "amount": 179.0
+      },
+      {
+        "date": "2026-04-11",
+        "amount": 179.0
+      },
+      {
+        "date": "2026-05-11",
+        "amount": 179.0
+      }
+    ],
+    "representative_amount": 179.0,
+    "cadence": "monthly",
+    "confidence": "HIGH",
+    "distinct_months": 3,
+    "median_gap_days": 30.5,
+    "amount_stable": true,
+    "price_creep": false,
+    "price_segments": [
+      {
+        "amount": 179.0,
+        "from": "2026-03-11",
+        "to": "2026-05-11",
+        "count": 3
+      }
+    ],
+    "status": "active",
+    "missed_payment": false,
+    "total_amount": 537.0,
+    "first_seen": "2026-03-11",
+    "last_seen": "2026-05-11",
+    "occurrence_count": 3,
+    "internal_transfer_hint": false,
+    "category_hint": "subscription_bill",
+    "duplicate": false,
+    "cross_account_duplicate": false,
+    "duplicate_group": null,
+    "category": "subscription_bill",
+    "brand_name": "Apple Services",
+    "explanation": "Apple subscription (iCloud/Music/One)."
+  }
+]

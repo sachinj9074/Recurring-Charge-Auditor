@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bank account",
+  "description": "Metadata for one of a user's bank accounts. No account number or balance is stored; the label is a user-chosen nickname.",
+  "type": "object",
+  "required": ["id", "label", "created"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string"},
+    "label": {"type": "string", "minLength": 1,
+      "description": "User-chosen nickname, e.g. 'HDFC Salary'."},
+    "bank_name": {"type": "string",
+      "description": "Free-text bank name, optional; detection is bank-agnostic."},
+    "account_type": {"type": ["string", "null"]},
+    "created": {"type": "string"}
+  }
+}

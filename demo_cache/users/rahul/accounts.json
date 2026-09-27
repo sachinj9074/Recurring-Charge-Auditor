@@ -1,0 +1,16 @@
+[
+  {
+    "id": "bank_hdfc",
+    "label": "HDFC Salary",
+    "bank_name": "HDFC Bank",
+    "account_type": null,
+    "created": "2026-09-01T00:00:00"
+  },
+  {
+    "id": "bank_icici",
+    "label": "ICICI Savings",
+    "bank_name": "ICICI Bank",
+    "account_type": null,
+    "created": "2026-09-01T00:00:00"
+  }
+]
