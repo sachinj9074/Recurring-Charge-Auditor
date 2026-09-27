@@ -51,3 +51,20 @@ def test_access_code_gate(monkeypatch):
     assert auth.check_access_code("invite-42")
     assert not auth.check_access_code("invite-99")
     assert not auth.check_access_code("")
+
+
+def test_real_mode_locked_fails_closed(monkeypatch):
+    # A key configured without an access code must lock real mode (fail closed), so a
+    # forgotten REAL_ACCESS_CODE on a deploy can never expose the operator's key.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.delenv("REAL_ACCESS_CODE", raising=False)
+    assert auth.real_mode_locked()
+
+    # With an access code set, real mode is unlocked (gated by the code).
+    monkeypatch.setenv("REAL_ACCESS_CODE", "invite-42")
+    assert not auth.real_mode_locked()
+
+    # With no key at all (zero-cost demo), there is no key to protect: not locked.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("REAL_ACCESS_CODE", raising=False)
+    assert not auth.real_mode_locked()

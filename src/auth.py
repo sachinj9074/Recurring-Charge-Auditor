@@ -118,6 +118,16 @@ def access_code_required() -> bool:
     return bool(os.getenv("REAL_ACCESS_CODE"))
 
 
+def real_mode_locked() -> bool:
+    """Fail closed: True when a paid API key is configured but no invite code is set.
+
+    The operator's key is the misuse risk, so it must never be reachable ungated. When
+    a key is present without a REAL_ACCESS_CODE, the app disables the paid path (real
+    sign in/up and all enrichment) rather than leaving it open, so a forgotten code on
+    a public deploy cannot expose the key. Deterministic detection still runs."""
+    return bool(os.getenv("ANTHROPIC_API_KEY")) and not os.getenv("REAL_ACCESS_CODE")
+
+
 def check_access_code(code: str) -> bool:
     """Constant-time check of a typed invite code. Open when none is configured."""
     expected = os.getenv("REAL_ACCESS_CODE", "")

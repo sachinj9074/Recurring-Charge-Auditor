@@ -97,7 +97,7 @@ streamlit run src/app.py               # start the app
 
 The app opens on the **Explore the demo / Use it for real** screen. In the demo, log in as a sample profile (its password is shown on screen) to browse the two-lens review with no key. To try your own statement, choose **Use it for real**, create an account, add a bank account, and upload a CSV/XLS/XLSX (for example `samples/sample_hdfc.csv`).
 
-Copy `.env.example` to `.env` and paste your own Anthropic API key to enable enrichment. The key stays server-side and is never committed. With no key, the deterministic detection still runs end to end.
+Copy `.env.example` to `.env` and paste your own Anthropic API key to enable enrichment. The key stays server-side and is never committed. With no key, the deterministic detection still runs end to end. For safety the app fails closed: whenever a key is set, you must also set `REAL_ACCESS_CODE` (any value you choose) or real mode stays disabled, so a forgotten code can never expose the key. Enter that code once to unlock real mode.
 
 ## Roadmap
 

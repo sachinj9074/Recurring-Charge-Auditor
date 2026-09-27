@@ -74,7 +74,9 @@ This is your `ANTHROPIC_API_KEY`. Skip this part for the zero-cost demo.
    R2_SECRET_ACCESS_KEY = "..."
 
    # Invite code for "Use it for real": only people you give it to can create an
-   # account or sign in. Strongly recommended on a public deploy.
+   # account or sign in. REQUIRED whenever ANTHROPIC_API_KEY is set: the app fails
+   # closed, disabling real mode and all enrichment if a key is present without a code,
+   # so a forgotten code can never expose your key.
    REAL_ACCESS_CODE     = "pick-a-shared-code"
 
    # optional, these are the defaults
@@ -82,10 +84,12 @@ This is your `ANTHROPIC_API_KEY`. Skip this part for the zero-cost demo.
    REAL_STATEMENTS_PER_DAY = "10"  # statements a real account may process per day
    ```
 
-   Leave `REAL_ACCESS_CODE` blank only if you want anyone to be able to create an
-   account. With it set, share the code with your invitees; each of them still
-   creates their own password-protected account. Rotate it any time by changing the
-   value.
+   With `ANTHROPIC_API_KEY` set, `REAL_ACCESS_CODE` is required: leave it blank and
+   the app fails closed, showing "real mode is turned off" and skipping all
+   enrichment, so your key stays protected. Set it, then share the code with your
+   invitees; each of them still creates their own password-protected account. Rotate
+   it any time by changing the value. (You may leave it blank only for the zero-cost
+   demo, where there is no key to protect.)
 
 4. Save. Streamlit reboots the app with the new secrets. The app copies these
    secrets into the environment on startup, so the same code works locally from a

@@ -32,8 +32,18 @@ _SECRET_KEYS = ("ANTHROPIC_API_KEY", "FAST_MODEL", "JUDGMENT_MODEL", "R2_BUCKET"
 
 
 def _bridge_secrets() -> None:
-    """Copy Streamlit Cloud secrets into the environment so model.py/store.py
-    (which read os.environ) work on the hosted deploy as well as from a local .env."""
+    """Make config visible in os.environ at startup, from either source, so every
+    check (the API-key gate, the fail-closed lock, storage) sees it before it runs:
+    a local .env for local runs, and Streamlit Cloud secrets on the hosted deploy.
+
+    This must happen at startup, not lazily inside enrichment, or has_api_key() reads
+    False on the first pass and both enrichment and the access-code lock silently
+    misbehave."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
     try:
         for k in _SECRET_KEYS:
             if k in st.secrets and not os.environ.get(k):
@@ -44,6 +54,14 @@ def _bridge_secrets() -> None:
 
 def has_api_key() -> bool:
     return bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def paid_enabled() -> bool:
+    """The operator's key is used only when an invite code is also configured, so a
+    forgotten REAL_ACCESS_CODE can never leave it open to the public. Without it, the
+    paid steps (LLM column-mapping fallback and enrichment) are skipped; deterministic
+    detection still runs everywhere."""
+    return has_api_key() and auth.access_code_required()
 
 
 def _init_state() -> None:
@@ -114,6 +132,13 @@ def _demo_login() -> None:
 
 
 def _real_auth() -> None:
+    if auth.real_mode_locked():
+        st.warning("Real mode is turned off to protect the API key. A key is configured "
+                   "but no access code is set, so sign in and sign up are disabled. Set "
+                   "**REAL_ACCESS_CODE** (in `.env` locally, or Streamlit secrets on deploy) "
+                   "to enable it. See DEPLOY.md.")
+        st.caption("The demo tab still works, and deterministic detection runs without the key.")
+        return
     if auth.access_code_required() and not st.session_state.access_ok:
         st.write("Access is invite-only for now.")
         code = st.text_input("Access code", type="password", key="access_code")
@@ -239,7 +264,7 @@ def _upload_section(store) -> None:
 def _start_pending(file, account_id) -> None:
     try:
         grid = ingest.read_table(file.getvalue(), file.name)
-        m = mapping.infer(grid, allow_llm=has_api_key())
+        m = mapping.infer(grid, allow_llm=paid_enabled())
     except normalize.MappingError:
         st.error("Could not work out the columns automatically. Please check this is a bank "
                  "statement export, or try a different file.")
@@ -323,8 +348,9 @@ def _run_detection(store, grid, m, account_id) -> None:
 
     detected = detect.detect_charges(txns)
 
-    # Enrichment (the only paid step): gate real accounts by a daily cap.
-    if has_api_key() and detected:
+    # Enrichment (the only paid step): runs only when the key is gated by an access
+    # code (paid_enabled), and real accounts are further bounded by a daily cap.
+    if paid_enabled() and detected:
         allowed = True
         us = None
         if a["mode"] == "real":
