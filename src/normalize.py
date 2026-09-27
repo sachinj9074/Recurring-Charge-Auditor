@@ -209,6 +209,7 @@ class Mapping:
     amount_col: int | None = None
     flag_col: int | None = None
     money_out: str = SIGN_NEGATIVE
+    flip: bool = False                # user override: swap debit <-> credit wholesale
     source: str = "deterministic"     # or 'llm'
     confident: bool = True
 
@@ -218,16 +219,16 @@ class Mapping:
             "desc_col": self.desc_col, "scheme": self.scheme,
             "debit_col": self.debit_col, "credit_col": self.credit_col,
             "amount_col": self.amount_col, "flag_col": self.flag_col,
-            "money_out": self.money_out, "source": self.source,
+            "money_out": self.money_out, "flip": self.flip, "source": self.source,
             "confident": self.confident,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> "Mapping":
-        return cls(**{k: d.get(k) for k in (
-            "header_row", "date_col", "desc_col", "scheme", "debit_col",
-            "credit_col", "amount_col", "flag_col", "money_out", "source",
-            "confident")})
+        keys = ("header_row", "date_col", "desc_col", "scheme", "debit_col",
+                "credit_col", "amount_col", "flag_col", "money_out", "flip",
+                "source", "confident")
+        return cls(**{k: d[k] for k in keys if k in d})
 
 
 class MappingError(RuntimeError):
@@ -342,6 +343,8 @@ def apply_mapping(grid: list[list[str]], m: Mapping,
         amount, direction = _extract_money(row, m)
         if amount is None or amount == 0:
             continue
+        if m.flip and direction in ("debit", "credit"):
+            direction = "credit" if direction == "debit" else "debit"
         out.append(Transaction(d, desc, amount, direction, bank_account_id))
     return out
 

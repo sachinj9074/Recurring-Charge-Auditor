@@ -1,0 +1,364 @@
+"""Recurring Charge Auditor: the Streamlit app (surface only; logic lives in src/).
+
+Flow: access-code gate -> Explore the demo / Use it for real -> (real) sign in or
+sign up -> add bank accounts (cap 2) -> upload a statement -> the mandatory
+mapping-confirmation checkpoint -> deterministic detection -> LLM enrichment (if a
+key is set) -> the two-lens review with a confirm/dismiss loop. The raw statement
+lives only in the session and is discarded after detection; only the derived
+charge list and the user's confirmations are persisted (encrypted, per user).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+import streamlit as st
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src import (accounts, auth, charges as charges_mod, detect, enrich, ingest,  # noqa: E402
+                 mapping, normalize, render, store as store_mod, users)
+from src.storage import InMemoryBackend  # noqa: E402
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+st.set_page_config(page_title="Recurring Charge Auditor", page_icon="\U0001f9fe", layout="wide")
+
+_SECRET_KEYS = ("ANTHROPIC_API_KEY", "FAST_MODEL", "JUDGMENT_MODEL", "R2_BUCKET",
+                "R2_ENDPOINT_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+                "REAL_ACCESS_CODE", "DEMO_LIVE_UPLOADS", "REAL_STATEMENTS_PER_DAY")
+
+
+def _bridge_secrets() -> None:
+    """Copy Streamlit Cloud secrets into the environment so model.py/store.py
+    (which read os.environ) work on the hosted deploy as well as from a local .env."""
+    try:
+        for k in _SECRET_KEYS:
+            if k in st.secrets and not os.environ.get(k):
+                os.environ[k] = str(st.secrets[k])
+    except Exception:
+        pass
+
+
+def has_api_key() -> bool:
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _init_state() -> None:
+    for k, v in (("auth", None), ("data_key", None), ("demo_backend", None),
+                 ("pending", None), ("demo_uploads", 0), ("access_ok", False)):
+        st.session_state.setdefault(k, v)
+
+
+# --- store access -----------------------------------------------------------
+
+def get_store():
+    a = st.session_state.auth
+    if not a:
+        return None
+    if a["mode"] == "demo":
+        return store_mod.Store(backend=st.session_state.demo_backend)
+    return store_mod.user_store(a["user_id"], st.session_state.data_key)
+
+
+def _load_demo_backend(user_id: str) -> InMemoryBackend:
+    be = InMemoryBackend()
+    base = os.path.join(REPO, "demo_cache", "users", user_id)
+    for coll, fname in (("banks", "accounts.json"), ("charges", "charges.json")):
+        path = os.path.join(base, fname)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                for rec in json.load(f):
+                    be.put(f"{coll}/{rec['id']}.json", json.dumps(rec).encode("utf-8"))
+    return be
+
+
+# --- landing / auth ---------------------------------------------------------
+
+def landing() -> None:
+    st.title("\U0001f9fe Recurring Charge Auditor")
+    st.caption("Find every subscription and auto-debit in your bank statements, and tell the "
+               "money leaks apart from the wealth-building. Built for Indian bank rails.")
+    tab_demo, tab_real = st.tabs(["Explore the demo", "Use it for real"])
+    with tab_demo:
+        _demo_login()
+    with tab_real:
+        _real_auth()
+
+
+def _demo_login() -> None:
+    st.write("Log in as a sample profile to explore the full two-lens review on synthetic data. "
+             "No API key or upload needed.")
+    profiles = auth.demo_users()
+    if not profiles:
+        st.info("No demo profiles found. Run `python scripts/build_demo_cache.py` first.")
+        return
+    labels = {u.user_id: f"{u.name}  (password: {u.password_hint})" for u in profiles}
+    uid = st.selectbox("Profile", [u.user_id for u in profiles],
+                       format_func=lambda i: labels[i], key="demo_pick")
+    pw = st.text_input("Password", type="password", key="demo_pw")
+    if st.button("Enter demo", type="primary", key="demo_enter"):
+        u = auth.authenticate_demo(uid, pw)
+        if u:
+            st.session_state.demo_backend = _load_demo_backend(uid)
+            st.session_state.auth = {"mode": "demo", "user_id": uid, "name": u.name}
+            st.rerun()
+        else:
+            st.error("Wrong password. Each profile's password is shown next to its name.")
+
+
+def _real_auth() -> None:
+    if auth.access_code_required() and not st.session_state.access_ok:
+        st.write("Access is invite-only for now.")
+        code = st.text_input("Access code", type="password", key="access_code")
+        if st.button("Enter", key="access_enter"):
+            if auth.check_access_code(code):
+                st.session_state.access_ok = True
+                st.rerun()
+            else:
+                st.error("Invalid access code.")
+        return
+
+    us = users.UserStore(store_mod.build_base_backend())
+    login_tab, signup_tab = st.tabs(["Log in", "Create account"])
+    with login_tab:
+        u = st.text_input("Username", key="li_user")
+        p = st.text_input("Password", type="password", key="li_pw")
+        if st.button("Log in", type="primary", key="li_btn"):
+            res = us.authenticate(u, p)
+            if res:
+                acct, dk = res
+                st.session_state.auth = {"mode": "real", "user_id": acct["user_id"], "name": acct["name"]}
+                st.session_state.data_key = dk
+                st.rerun()
+            else:
+                st.error("Wrong username or password.")
+    with signup_tab:
+        u = st.text_input("Choose a username", key="su_user")
+        n = st.text_input("Your name", key="su_name")
+        p = st.text_input("Password (at least 8 characters)", type="password", key="su_pw")
+        if st.button("Create account", type="primary", key="su_btn"):
+            try:
+                acct = us.create(u, n, p)
+                _, dk = us.authenticate(u, p)
+                st.session_state.auth = {"mode": "real", "user_id": acct["user_id"], "name": acct["name"]}
+                st.session_state.data_key = dk
+                st.rerun()
+            except users.UserError as e:
+                st.error(str(e))
+        st.caption("Your charge list is encrypted with your password. There is no password reset "
+                   "in this MVP, so keep it safe.")
+
+
+# --- sidebar: accounts + logout ---------------------------------------------
+
+def _sidebar(store) -> None:
+    a = st.session_state.auth
+    with st.sidebar:
+        st.markdown(f"**{a['name']}**")
+        st.caption("Demo profile (session only)" if a["mode"] == "demo" else "Signed in")
+        if st.button("Log out", key="logout"):
+            for k in ("auth", "data_key", "demo_backend", "pending", "access_ok"):
+                st.session_state.pop(k, None)
+            st.rerun()
+        st.divider()
+        st.markdown("**Bank accounts**")
+        accts = accounts.list_accounts(store)
+        for ac in accts:
+            cols = st.columns([4, 1])
+            cols[0].caption(f"{ac['label']}  \n{ac.get('bank_name','') or ''}")
+            if a["mode"] != "demo":
+                cols[1].button("Remove", key=f"del_{ac['id']}",
+                               on_click=accounts.delete_account, args=(store, ac["id"]))
+        if a["mode"] == "demo":
+            return
+        if len(accts) < accounts.MAX_BANK_ACCOUNTS:
+            with st.form("add_acct", clear_on_submit=True):
+                lbl = st.text_input("Account label", placeholder="HDFC Salary")
+                bank = st.text_input("Bank name", placeholder="HDFC Bank")
+                if st.form_submit_button("Add account"):
+                    try:
+                        accounts.create_account(store, label=lbl, bank_name=bank)
+                        st.rerun()
+                    except accounts.BankAccountError as e:
+                        st.error(str(e))
+        else:
+            st.caption(f"MVP limit is {accounts.MAX_BANK_ACCOUNTS} accounts. Remove one to add another.")
+
+
+# --- upload + mapping checkpoint --------------------------------------------
+
+def _upload_section(store) -> None:
+    a = st.session_state.auth
+    accts = accounts.list_accounts(store)
+    if a["mode"] != "demo" and not accts:
+        st.info("Add a bank account in the sidebar to upload a statement.")
+        return
+
+    st.markdown("### Add a statement")
+    if a["mode"] == "demo":
+        cap = int(os.getenv("DEMO_LIVE_UPLOADS", "2"))
+        st.caption(f"Demo: you may try up to {cap} of your own files this session. They are "
+                   "processed live and kept only in this browser session, never saved.")
+
+    acct_options = {ac["id"]: ac["label"] for ac in accts}
+    acct_id = None
+    if acct_options:
+        acct_id = st.selectbox("Attach to which account?", list(acct_options),
+                               format_func=lambda i: acct_options[i], key="up_acct")
+    file = st.file_uploader("Upload a CSV, XLS, or XLSX statement", type=["csv", "xls", "xlsx"],
+                            key="up_file")
+    if file is not None and st.button("Read file", key="up_read"):
+        _start_pending(file, acct_id)
+
+    if st.session_state.pending:
+        _checkpoint(store)
+
+
+def _start_pending(file, account_id) -> None:
+    try:
+        grid = ingest.read_table(file.getvalue(), file.name)
+        m = mapping.infer(grid, allow_llm=has_api_key())
+    except normalize.MappingError:
+        st.error("Could not work out the columns automatically. Please check this is a bank "
+                 "statement export, or try a different file.")
+        return
+    except ingest.IngestError as e:
+        st.error(f"Could not read this file: {e}")
+        return
+    st.session_state.pending = {"grid": grid, "mapping": m.to_dict(),
+                                "account_id": account_id, "filename": file.name}
+    st.rerun()
+
+
+def _checkpoint(store) -> None:
+    import pandas as pd
+    p = st.session_state.pending
+    grid = p["grid"]
+    base_m = normalize.Mapping.from_dict(p["mapping"])
+
+    st.markdown("### Step 2 of 2 · Confirm how your statement was read")
+    st.caption("This is the most important step. A statement can label money-out in three different "
+               "ways, and reading it backwards would make every number wrong. Check the debit total "
+               "below looks right before detecting.")
+
+    header = grid[base_m.header_row] if 0 <= base_m.header_row < len(grid) else []
+    ncols = max(len(r) for r in grid)
+
+    def label(i):
+        return f"{i}: {header[i]}" if i < len(header) and header[i] else f"column {i}"
+
+    c1, c2 = st.columns(2)
+    date_col = c1.selectbox("Date column", range(ncols), index=min(base_m.date_col, ncols - 1),
+                            format_func=label, key="cp_date")
+    desc_col = c2.selectbox("Description column", range(ncols), index=min(base_m.desc_col, ncols - 1),
+                            format_func=label, key="cp_desc")
+    st.caption(f"Amount convention detected: **{base_m.scheme.replace('_', ' ')}**"
+               + ("" if base_m.source == "deterministic" else "  (inferred by the model, please double-check)"))
+    flip = st.checkbox("My debits and credits look swapped, flip the direction",
+                       value=base_m.flip, key="cp_flip")
+
+    prev_m = mapping.finalize_mapping(p["mapping"],
+                                      {"date_col": date_col, "desc_col": desc_col, "flip": flip})
+    cp = mapping.build_checkpoint(grid, prev_m)
+    counts = cp["counts"]
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Money-out rows (debits)", counts["debit_count"], render.inr(counts["debit_total"]))
+    m2.metric("Money-in rows (credits)", counts["credit_count"], render.inr(counts["credit_total"]))
+    m3.metric("Transactions read", counts["total_rows"])
+
+    st.markdown("**First rows as read:**")
+    if cp["preview"]:
+        st.dataframe(pd.DataFrame(cp["preview"]), hide_index=True, use_container_width=True)
+    else:
+        st.warning("No transactions parsed with these settings. Adjust the columns above.")
+
+    go, cancel, _ = st.columns([1, 1, 3])
+    if go.button("Confirm and detect", type="primary", key="cp_go", disabled=not cp["preview"]):
+        _run_detection(store, grid, prev_m, p["account_id"])
+    if cancel.button("Cancel", key="cp_cancel"):
+        st.session_state.pending = None
+        st.rerun()
+
+
+def _run_detection(store, grid, m, account_id) -> None:
+    a = st.session_state.auth
+    txns = mapping.to_transactions(grid, m, account_id)
+    if not txns:
+        st.error("No transactions to detect. Adjust the mapping.")
+        return
+
+    if a["mode"] == "demo":
+        cap = int(os.getenv("DEMO_LIVE_UPLOADS", "2"))
+        if st.session_state.demo_uploads >= cap:
+            st.error("Demo upload limit reached for this session.")
+            return
+        st.session_state.demo_uploads += 1
+
+    detected = detect.detect_charges(txns)
+
+    # Enrichment (the only paid step): gate real accounts by a daily cap.
+    if has_api_key() and detected:
+        allowed = True
+        us = None
+        if a["mode"] == "real":
+            us = users.UserStore(store_mod.build_base_backend())
+            cap = int(os.getenv("REAL_STATEMENTS_PER_DAY", "10"))
+            allowed = us.statements_today(a["user_id"]) < cap
+        if allowed:
+            try:
+                with st.spinner("Naming and categorizing merchants..."):
+                    enrich.enrich_charges(detected)
+                if us is not None:
+                    us.record_statement(a["user_id"])
+            except Exception:
+                st.warning("Merchant naming was skipped (model unavailable); showing detector labels.")
+        else:
+            st.info("Daily processing limit reached, so merchant naming was skipped. "
+                    "Detection still ran.")
+
+    charges_mod.persist_detection(store, detected)
+    st.session_state.pending = None          # discard the raw grid
+    st.success(f"Found {len(detected)} recurring charges. The raw statement has been discarded; "
+               "only the derived list is kept.")
+    st.rerun()
+
+
+# --- review -----------------------------------------------------------------
+
+def _review_section(store) -> None:
+    all_c = charges_mod.list_charges(store)
+    st.markdown("### Your recurring charges")
+    if not all_c:
+        st.info("No charges yet. Upload a statement above to get started.")
+        return
+    render.two_lens(store, all_c)
+
+
+# --- main -------------------------------------------------------------------
+
+def _authed_app() -> None:
+    store = get_store()
+    _sidebar(store)
+    st.title("\U0001f9fe Recurring Charge Auditor")
+    _upload_section(store)
+    st.divider()
+    _review_section(store)
+    st.divider()
+    st.caption("This tool organizes and explains what leaves your account. It is not financial or "
+               "investment advice.")
+
+
+def main() -> None:
+    _bridge_secrets()
+    _init_state()
+    if st.session_state.auth is None:
+        landing()
+    else:
+        _authed_app()
+
+
+main()

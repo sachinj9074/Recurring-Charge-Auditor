@@ -25,7 +25,7 @@ from src import normalize, schema
 from src.normalize import Mapping, MappingError
 
 _MAPPING_KEYS = ("header_row", "date_col", "desc_col", "scheme", "debit_col",
-                 "credit_col", "amount_col", "flag_col", "money_out")
+                 "credit_col", "amount_col", "flag_col", "money_out", "flip")
 
 _RAIL = re.compile(r"(?i)\b(upi|neft|imps|ach|nach|ecs|mandate|si|autopay|pos|atm)\b")
 
@@ -128,7 +128,7 @@ def llm_infer_mapping(grid: list[list[str]], *, complete=None,
 def _defaults() -> dict:
     return {"header_row": -1, "date_col": 0, "desc_col": 1, "scheme": "signed",
             "debit_col": None, "credit_col": None, "amount_col": None,
-            "flag_col": None, "money_out": normalize.SIGN_NEGATIVE,
+            "flag_col": None, "money_out": normalize.SIGN_NEGATIVE, "flip": False,
             "source": "llm", "confident": False}
 
 

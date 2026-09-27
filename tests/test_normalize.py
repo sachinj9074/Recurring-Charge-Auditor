@@ -134,6 +134,16 @@ def test_signed_scheme_and_direction_flip():
     assert flipped[1].direction == "debit"
 
 
+def test_flip_swaps_direction_wholesale():
+    m = infer_mapping(_two_col_grid())
+    normal = apply_mapping(_two_col_grid(), m)
+    m.flip = True
+    flipped = apply_mapping(_two_col_grid(), m)
+    # Every direction is inverted relative to the un-flipped read.
+    assert [t.direction for t in flipped] == [
+        "credit" if t.direction == "debit" else "debit" for t in normal]
+
+
 def test_signed_scheme_respects_explicit_drcr_over_sign():
     grid = [
         ["Date", "Description", "Amount"],
