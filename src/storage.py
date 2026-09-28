@@ -164,11 +164,13 @@ class R2Backend:
         else:
             try:
                 import boto3
+                from botocore.config import Config
             except ImportError as e:  # pragma: no cover - needs the dep to hit
                 raise StorageError("R2 storage requires the 'boto3' package") from e
             self._client = boto3.client(
                 "s3", endpoint_url=endpoint_url, region_name=region,
                 aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key,
+                config=_r2_config(Config),
             )
 
     def put(self, key: str, data: bytes) -> None:
@@ -208,6 +210,23 @@ class R2Backend:
 
     def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self.bucket, Key=key)
+
+
+def _r2_config(Config):
+    """A boto3 client Config that Cloudflare R2 accepts.
+
+    Two modern-botocore defaults break R2 with a 400 Bad Request:
+      - virtual-host addressing (bucket in the hostname): force path-style instead;
+      - automatic request/response integrity checksums (added in botocore 1.36):
+        R2 rejects the extra headers, so only send a checksum when the operation
+        actually requires one.
+    The checksum knobs exist only on newer botocore, so fall back without them."""
+    base = {"signature_version": "s3v4", "s3": {"addressing_style": "path"}}
+    try:
+        return Config(request_checksum_calculation="when_required",
+                      response_checksum_validation="when_required", **base)
+    except TypeError:          # older botocore without the checksum options
+        return Config(**base)
 
 
 def _is_missing(err: Exception) -> bool:

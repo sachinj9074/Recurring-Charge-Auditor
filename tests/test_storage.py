@@ -59,3 +59,17 @@ def test_prefixed_backends_isolate_users():
     assert asha.list("") == ["charges/c1.json"]
     assert ravi.list("") == ["charges/c1.json"]
     assert not asha.exists("../ravi/charges/c1.json")
+
+
+def test_r2_config_is_path_style_and_r2_safe():
+    # R2 rejects virtual-host addressing and modern botocore's default checksums with
+    # a 400; the client config must force path-style and only-when-required checksums.
+    from botocore.config import Config
+
+    from src.storage import _r2_config
+    cfg = _r2_config(Config)
+    assert cfg.s3.get("addressing_style") == "path"
+    assert cfg.signature_version == "s3v4"
+    # The checksum knob is set on botocore versions that support it.
+    if hasattr(cfg, "request_checksum_calculation"):
+        assert cfg.request_checksum_calculation == "when_required"
