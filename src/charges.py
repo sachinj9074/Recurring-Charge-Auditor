@@ -114,6 +114,26 @@ def recategorize(store, charge_id: str, category: str) -> dict | None:
     return d
 
 
+def apply_edits(store, edits: dict) -> int:
+    """Persist a batch of staged edits at once (one write per changed charge) and
+    remember each decision against its merchant, so the review can stage many changes
+    and save them in a single action instead of a write per click. `edits` is
+    {charge_id: {field: value}}. Returns how many charges changed."""
+    n = 0
+    for cid, fields in (edits or {}).items():
+        d = get(store, cid)
+        if d is None:
+            continue
+        upd = dict(fields)
+        if "category" in upd:
+            upd["category_source"] = "user"     # a human correction is authoritative
+        d.update(upd)
+        store.save(_CHARGES, cid, d)
+        _remember(store, d, **{k: v for k, v in upd.items() if k in _PREF_FIELDS})
+        n += 1
+    return n
+
+
 def delete_charge(store, charge_id: str) -> bool:
     return store.delete(_CHARGES, charge_id)
 

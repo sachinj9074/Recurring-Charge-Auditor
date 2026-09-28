@@ -79,6 +79,25 @@ def test_category_memory_carries_to_future_months():
     assert axis2["category"] == "subscription_bill" and axis2["category_source"] == "user"
 
 
+def test_apply_edits_batches_and_remembers():
+    s = _store()
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    spot = next(c for c in charges.list_charges(s) if c.get("vpa") == "spotify@hdfcbank")
+    axis = next(c for c in charges.list_charges(s) if "axis" in c["merchant_key"])
+    n = charges.apply_edits(s, {
+        spot["id"]: {"review_status": charges.DISMISSED, "note": "old trial"},
+        axis["id"]: {"category": "subscription_bill"},
+    })
+    assert n == 2
+    spot2, axis2 = charges.get(s, spot["id"]), charges.get(s, axis["id"])
+    assert spot2["review_status"] == charges.DISMISSED and spot2["note"] == "old trial"
+    assert axis2["category"] == "subscription_bill" and axis2["category_source"] == "user"
+    # A batched category edit is remembered, so re-detection re-applies it.
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    axis3 = next(c for c in charges.list_charges(s) if "axis" in c["merchant_key"])
+    assert axis3["category"] == "subscription_bill"
+
+
 def test_clear_charges_all_and_by_account():
     s = _store()
     charges.persist_detection(s, _detected())

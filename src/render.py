@@ -7,6 +7,7 @@ confirm/dismiss/category/internal-transfer controls to charges.py.
 
 from __future__ import annotations
 
+import html
 import re
 
 import streamlit as st
@@ -47,6 +48,49 @@ def cadence_phrase(cadence: str) -> str:
     return _PER.get(cadence, f"({cadence})")
 
 
+def inject_css() -> None:
+    """A little CSS to tighten spacing and give the page a clearer hierarchy. Kept to
+    layout-level, version-safe selectors so a Streamlit upgrade will not break it."""
+    st.markdown(
+        """
+        <style>
+          /* Start content higher: Streamlit's default top padding is large. Leave room
+             at the bottom for the fixed 'unsaved changes' bar so it never covers a card. */
+          .block-container { padding-top: 2.4rem; padding-bottom: 6rem; max-width: 1080px; }
+          /* Expander headers read as section headers, not shouty controls. */
+          details > summary { font-weight: 600; }
+          /* Metric numbers a touch smaller so the three tiles do not dominate. */
+          div[data-testid="stMetricValue"] { font-size: 1.5rem; }
+          /* Tighten vertical rhythm between stacked blocks. */
+          div[data-testid="stVerticalBlock"] { gap: 0.6rem; }
+
+          /* Card header: name plus all tags on one wrapping row, tags aligned to the
+             name. The name truncates with an ellipsis so a long name never pushes the
+             tags around; on phones it truncates sooner to keep the row tidy. */
+          .rc-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-bottom: 2px; }
+          .rc-name { font-weight: 700; font-size: 1.03rem; line-height: 1.5; min-width: 0;
+                     max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .rc-tag { border-radius: 6px; padding: 1px 8px; font-size: 0.74rem; white-space: nowrap;
+                    line-height: 1.6; }
+          @media (max-width: 640px) { .rc-name { max-width: 56vw; font-size: 1rem; } }
+
+          /* Unsaved-changes bar: fixed at the bottom, out of document flow, so its
+             appearance never reflows the page or snaps the scroll to the top. */
+          .st-key-rc_savebar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+              background: var(--secondary-background-color, #1e1e26);
+              border-top: 1px solid rgba(128,128,128,0.35);
+              box-shadow: 0 -3px 12px rgba(0,0,0,0.18);
+              padding: 0.5rem 1rem; }
+          .st-key-rc_savebar > div { max-width: 1080px; margin: 0 auto; }
+
+          /* On phones, remove side gutters eating width. */
+          @media (max-width: 640px) { .block-container { padding-left: 0.8rem; padding-right: 0.8rem; } }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _title(d: dict) -> str:
     return d.get("brand_name") or d.get("merchant_key") or "(unknown merchant)"
 
@@ -61,12 +105,6 @@ _GREEN = ("#dcfce7", "#166534")
 # per-occurrence amount and cadence are the engine's, this just multiplies for the view).
 _PERIODS_PER_YEAR = {"daily": 365, "weekly": 52, "fortnightly": 26, "monthly": 12,
                      "bi-monthly": 6, "quarterly": 4, "annual": 1}
-
-
-def _chip(text: str, colors: tuple[str, str]) -> str:
-    bg, fg = colors
-    return (f"<span style='background:{bg};color:{fg};border-radius:6px;padding:2px 8px;"
-            f"margin-right:6px;font-size:0.8em;white-space:nowrap'>{text}</span>")
 
 
 def annual_cost(d: dict) -> float | None:
@@ -90,13 +128,13 @@ def next_expected(d: dict) -> str | None:
         return None
 
 
-def _trail(d: dict) -> None:
+def _trail_list(d: dict, limit: int = 8) -> None:
     occ = d.get("occurrences") or []
     if not occ:
         return
-    with st.expander(f"Transaction trail ({len(occ)})"):
-        for o in occ[:24]:
-            st.caption(f"{o.get('date')} · {inr(o.get('amount'))}")
+    st.caption(f"Recent transactions ({len(occ)} total)")
+    for o in occ[:limit]:
+        st.caption(f"{o.get('date')} · {inr(o.get('amount'))}")
 
 
 def _is_remembered(d: dict, remembered) -> bool:
@@ -108,20 +146,17 @@ def _badges(d: dict) -> list[tuple[str, str, str]]:
     light and dark themes."""
     out = []
     if d.get("price_creep"):
-        segs = d.get("price_segments") or []
-        text = (f"Price rose {inr(segs[0]['amount'])} to {inr(segs[-1]['amount'])}"
-                if len(segs) >= 2 else "Price changed")
-        out.append((text, *_AMBER))
+        out.append(("Price rose", *_AMBER))          # the amounts show in the trail
     if d.get("cross_account_duplicate"):
-        out.append(("Duplicate across accounts", *_BLUE))
+        out.append(("Duplicate · 2 accounts", *_BLUE))
     elif d.get("duplicate"):
-        out.append(("Possible duplicate", *_BLUE))
+        out.append(("Duplicate", *_BLUE))
     if d.get("status") == "stopped":
-        out.append(("Looks stopped", *_RED))
+        out.append(("Stopped", *_RED))
     if d.get("missed_payment"):
         out.append(("Missed a cycle", *_RED))
     if d.get("internal_transfer_hint") and not d.get("is_internal_transfer"):
-        out.append(("Might be an internal transfer", *_GRAY))
+        out.append(("Maybe a transfer", *_GRAY))
     return out
 
 
@@ -130,100 +165,184 @@ def _sorted(charges: list[dict]) -> list[dict]:
                                           -float(c.get("representative_amount") or 0)))
 
 
+# --- staged edits: change many, save once -----------------------------------
+# Every edit is held in the session and shown inline; nothing is written until the
+# user presses Save. On the hosted app that turns one network write per click into a
+# single batch write, so the screen stays responsive during a review.
+
+def _pending() -> dict:
+    return st.session_state.setdefault("pending_edits", {})
+
+
+def _ver() -> int:
+    return st.session_state.setdefault("edit_ver", 0)
+
+
+def _stage(cid: str, **fields) -> None:
+    p = _pending()
+    entry = dict(p.get(cid, {}))
+    entry.update(fields)
+    p[cid] = entry
+
+
+def _staged(cid: str, field: str, default):
+    return _pending().get(cid, {}).get(field, default)
+
+
+def _details_open(cid: str) -> bool:
+    """Keep the Details expander open across the rerun an in-panel edit triggers, but
+    not when only the outside Keep/Dismiss control changed (which would pop it open)."""
+    return any(k in _pending().get(cid, {}) for k in ("category", "is_internal_transfer", "note"))
+
+
+def _reset_edits() -> None:
+    # Bumping the version changes every widget key, so controls re-init from stored state.
+    st.session_state["pending_edits"] = {}
+    st.session_state["edit_ver"] = _ver() + 1
+
+
+def _cb_status(cid, key):
+    val = {"Keep": charges_mod.CONFIRMED, "Dismiss": charges_mod.DISMISSED}.get(st.session_state.get(key))
+    if val:
+        _stage(cid, review_status=val)
+
+
+def _cb_category(cid, key):
+    _stage(cid, category=st.session_state[key])
+
+
+def _cb_internal(cid, key):
+    _stage(cid, is_internal_transfer=bool(st.session_state[key]))
+
+
+def _cb_note(cid, key):
+    _stage(cid, note=(st.session_state[key] or "").strip())
+
+
+def _cb_promote(cid, category):
+    _stage(cid, category=category, review_status=charges_mod.CONFIRMED, is_internal_transfer=False)
+
+
+def save_bar(store) -> None:
+    """A prominent bar (only when there are staged edits) to persist them all at once."""
+    p = _pending()
+    n = len(p)
+    if not n:
+        return
+    # A keyed container so CSS can fix it to the bottom of the screen: being out of the
+    # normal flow, it never reflows the page or snaps the scroll when it appears.
+    with st.container(key="rc_savebar"):
+        c0, c1, c2 = st.columns([3, 1, 1])
+        c0.markdown(f"**{n} unsaved change{'s' if n != 1 else ''}**  \nNothing is stored until you save.")
+        if c1.button("Save", type="primary", key="save_edits", use_container_width=True):
+            with st.spinner("Saving your changes..."):
+                charges_mod.apply_edits(store, p)
+            _reset_edits()
+            st.rerun()
+        if c2.button("Discard", key="discard_edits", use_container_width=True):
+            _reset_edits()
+            st.rerun()
+
+
+_CONF_COLORS = {"HIGH": _GREEN, "MEDIUM": _AMBER, "LOW": _GRAY}
+
+
+def _tag(text: str, colors: tuple[str, str]) -> str:
+    bg, fg = colors
+    return f"<span class='rc-tag' style='background:{bg};color:{fg}'>{html.escape(text)}</span>"
+
+
+def _all_chips(d: dict, remembered) -> list[str]:
+    """Every status tag for a card, in one consistent style: confidence first, then
+    detector flags, then whether it reflects a saved choice or an unsaved edit."""
+    chips = []
+    conf = d.get("confidence")
+    if conf:
+        chips.append(_tag(conf.title(), _CONF_COLORS.get(conf, _GRAY)))
+    chips += [_tag(t, (bg, fg)) for t, bg, fg in _badges(d)]
+    if _is_remembered(d, remembered):
+        chips.append(_tag("✓ remembered", _GREEN))
+    if d["id"] in _pending():
+        chips.append(_tag("● unsaved", _AMBER))
+    return chips
+
+
+def _card_header(d: dict, remembered) -> None:
+    """The name and all tags on one wrapping row. The name truncates (CSS ellipsis) so
+    a long merchant name never distorts the tags, on desktop or mobile."""
+    name = html.escape(_title(d))
+    chips = "".join(_all_chips(d, remembered))
+    st.markdown(f"<div class='rc-head'><span class='rc-name'>{name}</span>{chips}</div>",
+                unsafe_allow_html=True)
+
+
 # --- one charge card --------------------------------------------------------
 
-def charge_card(store, d: dict, *, lens: str, key_prefix: str, editable: bool = True,
-                remembered=None) -> None:
+def charge_card(store, d: dict, *, lens: str, key_prefix: str, remembered=None) -> None:
+    """A minimal card: merchant, amount and yearly cost lead; one visible action
+    (Keep / Dismiss); everything else sits behind a single 'Details & edit' expander.
+    Edits are staged, not written, so the card stays put until the user saves."""
     cid = d["id"]
+    ver = _ver()
     with st.container(border=True):
-        top = st.columns([4, 1])
-        with top[0]:
-            amount_line = f"{inr(d['representative_amount'])} {cadence_phrase(d.get('cadence',''))}"
-            if lens == "A":                        # subscriptions: show the true yearly cost
-                ac = annual_cost(d)
-                if ac:
-                    amount_line += f"  ·  ≈ {inr(ac)}/year"
-            st.markdown(f"**{_title(d)}**  \n{amount_line}")
-        with top[1]:
-            st.caption(f"{d.get('confidence','')}")
+        _card_header(d, remembered)
+        amount = f"{inr(d['representative_amount'])} {cadence_phrase(d.get('cadence',''))}"
+        if lens == "A":
+            ac = annual_cost(d)
+            if ac:
+                amount += f"  ·  ≈ {inr(ac)}/yr"
+        st.markdown(amount)
 
-        # A saved note is the most useful line to see at a glance; else the explanation.
-        if d.get("note"):
-            st.caption(f"📝 {d['note']}")
+        note = _staged(cid, "note", d.get("note") or "")
+        if note:
+            st.caption(f"📝 {note}")
         elif d.get("explanation"):
             st.caption(d["explanation"])
 
-        # meta line
         meta = f"{d.get('occurrence_count', 0)} charges · {d.get('first_seen','')} to {d.get('last_seen','')}"
         if lens == "A":
             nx = next_expected(d)
             if nx:
                 meta += f" · next ≈ {nx}"
         if lens == "B":
-            deployed = inr(d.get("total_amount", 0))
             ran = "ran on time" if d.get("status") == "active" and not d.get("missed_payment") else \
                   ("stopped" if d.get("status") == "stopped" else "check timing")
-            meta += f" · {deployed} deployed in window · {ran}"
+            meta += f" · {inr(d.get('total_amount', 0))} in window · {ran}"
         st.caption(meta)
 
-        chips = [_chip(text, (bg, fg)) for text, bg, fg in _badges(d)]
-        if _is_remembered(d, remembered):
-            chips.append(_chip("✓ your choice, remembered", _GREEN))
-        if chips:
-            st.markdown("".join(chips), unsafe_allow_html=True)
+        cur = _staged(cid, "review_status", d.get("review_status", charges_mod.PENDING))
+        default = {charges_mod.CONFIRMED: "Keep", charges_mod.DISMISSED: "Dismiss"}.get(cur)
+        skey = f"{key_prefix}st_{cid}_{ver}"
+        st.segmented_control("Keep or dismiss", ["Keep", "Dismiss"], default=default, key=skey,
+                             label_visibility="collapsed", on_change=_cb_status, args=(cid, skey))
 
-        _trail(d)
-
-        if not editable:
-            return
-
-        # controls
-        c1, c2, c3 = st.columns([1, 1, 2])
-        status = d.get("review_status", charges_mod.PENDING)
-        with c1:
-            st.button("Keep" if status != charges_mod.CONFIRMED else "Kept ✓",
-                      key=f"{key_prefix}keep_{cid}", use_container_width=True,
-                      on_click=charges_mod.set_status, args=(store, cid, charges_mod.CONFIRMED))
-        with c2:
-            st.button("Dismiss", key=f"{key_prefix}dismiss_{cid}", use_container_width=True,
-                      on_click=charges_mod.set_status, args=(store, cid, charges_mod.DISMISSED))
-        with c3:
-            current = charges_mod.effective_category(d)
-            options = _CATEGORY_ORDER[:]
-            index = options.index(current) if current in options else 0
-            st.selectbox("Category", options, index=index,
-                         format_func=lambda k: CATEGORY_LABELS[k],
-                         key=f"{key_prefix}cat_{cid}", label_visibility="collapsed",
-                         on_change=_on_category, args=(store, cid, f"{key_prefix}cat_{cid}"))
-
-        st.checkbox("This is a transfer between my own accounts (exclude it)",
-                    value=bool(d.get("is_internal_transfer")),
-                    key=f"{key_prefix}it_{cid}",
-                    on_change=_on_internal, args=(store, cid, f"{key_prefix}it_{cid}"))
-
-        _note_input(store, d, key_prefix=key_prefix)
+        # Keep the editor open across the rerun an in-panel edit triggers, so it does
+        # not collapse under the user mid-edit.
+        with st.expander("Details & edit", expanded=_details_open(cid)):
+            _edit_controls(d, key_prefix=key_prefix)
 
 
-def _note_input(store, d: dict, *, key_prefix: str) -> None:
-    """A compact free-text note so a cryptic VPA becomes recognisable (e.g. tag
-    'spotify.bdsi@hdfcbank' as 'Wife's Spotify'). Persisted per user, not sent to the LLM."""
+def _edit_controls(d: dict, *, key_prefix: str) -> None:
     cid = d["id"]
-    st.text_input("Note", value=d.get("note", ""), key=f"{key_prefix}note_{cid}",
-                  placeholder="Add a note: what is this for? (e.g. 'Wife's Spotify')",
-                  label_visibility="collapsed",
-                  on_change=_on_note, args=(store, cid, f"{key_prefix}note_{cid}"))
+    ver = _ver()
+    current = _staged(cid, "category", charges_mod.effective_category(d))
+    options = _CATEGORY_ORDER[:]
+    index = options.index(current) if current in options else 0
+    ckey = f"{key_prefix}cat_{cid}_{ver}"
+    st.selectbox("Category", options, index=index, format_func=lambda k: CATEGORY_LABELS[k],
+                 key=ckey, on_change=_cb_category, args=(cid, ckey))
 
+    itkey = f"{key_prefix}it_{cid}_{ver}"
+    st.checkbox("This is a transfer between my own accounts",
+                value=bool(_staged(cid, "is_internal_transfer", d.get("is_internal_transfer"))),
+                key=itkey, on_change=_cb_internal, args=(cid, itkey))
 
-def _on_note(store, cid, widget_key):
-    charges_mod.set_note(store, cid, st.session_state[widget_key])
+    nkey = f"{key_prefix}note_{cid}_{ver}"
+    st.text_input("Note", value=_staged(cid, "note", d.get("note", "")),
+                  placeholder="What is this for? (e.g. 'Wife's Spotify')",
+                  key=nkey, on_change=_cb_note, args=(cid, nkey))
 
-
-def _on_category(store, cid, widget_key):
-    charges_mod.set_category(store, cid, st.session_state[widget_key])
-
-
-def _on_internal(store, cid, widget_key):
-    charges_mod.set_internal_transfer(store, cid, st.session_state[widget_key])
+    _trail_list(d)
 
 
 # --- funnel view ------------------------------------------------------------
@@ -268,10 +387,9 @@ def _render_group(store, charges: list[dict], *, lens: str, key_prefix: str,
     for d in high_med:
         charge_card(store, d, lens=lens, key_prefix=key_prefix, remembered=remembered)
     if low:
-        with st.expander(f"Lower-confidence matches ({len(low)})"):
-            for d in low:
-                charge_card(store, d, lens=lens, key_prefix=f"{key_prefix}low_",
-                            remembered=remembered)
+        st.caption(f"Lower-confidence matches ({len(low)})")
+        for d in low:
+            charge_card(store, d, lens=lens, key_prefix=f"{key_prefix}low_", remembered=remembered)
 
 
 def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
@@ -283,8 +401,9 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
     ignored_n = sum(len(v) for v in ignored.values())
     remembered = set(charges_mod.load_merchant_prefs(store).keys())   # merchants you have decided on
 
-    # Plain count metrics, no delta: the monthly figure is a total, not an increase,
-    # so it goes in a caption rather than st.metric's green up-arrow.
+    save_bar(store)      # persist staged edits in one go; only appears when there are some
+
+    # Plain count metrics, no delta: the monthly figure is a total, not an increase.
     m = st.columns(3)
     with m[0]:
         st.metric("Subscriptions & bills", len(subs))
@@ -302,8 +421,8 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
         f"Set aside ({aside_n})",
     ])
     with tab_s:
-        st.caption("The charges we are confident are genuine, regular subscriptions or bills. "
-                   "Keep what you use; dismiss what you do not.")
+        st.caption("Genuine, regular subscriptions or bills. Open a card to keep, dismiss, or edit it, "
+                   "then Save when you are done.")
         if subs:
             _render_group(store, subs, lens="A", key_prefix="s_", remembered=remembered)
         else:
@@ -316,9 +435,9 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
         else:
             st.info("No investments detected.")
     with tab_x:
-        st.caption("Recurring charges we demoted so they do not crowd your subscriptions. Each shows "
-                   "why. Move any into Subscriptions or Investments if we got it wrong.")
-        if not aside_n:
+        st.caption("Demoted so they do not crowd your subscriptions. Move any into Subscriptions or "
+                   "Investments if we got it wrong.")
+        if not aside_n and not ignored_n:
             st.info("Nothing set aside.")
         for group, items in sorted(aside.items(), key=lambda kv: -len(kv[1])):
             with st.expander(f"{group} ({len(items)})"):
@@ -336,25 +455,27 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
 
 
 def _set_aside_card(store, d: dict, *, key_prefix: str = "x_", remembered=None) -> None:
+    # Rendered inside a group expander, so it keeps its own controls inline (no nested
+    # expander). Promote and note are staged like every other edit, saved together.
     cid = d["id"]
+    ver = _ver()
     with st.container(border=True):
+        _card_header(d, remembered)
+        st.markdown(f"{inr(d['representative_amount'])} {cadence_phrase(d.get('cadence',''))}")
         reason = (d.get("_placement") or {}).get("reason", "")
-        title = f"**{_title(d)}** · {inr(d['representative_amount'])} {cadence_phrase(d.get('cadence',''))}"
-        st.markdown(title)
         if reason:
             st.caption(reason)
-        if d.get("note"):
-            st.caption(f"📝 {d['note']}")
-        if _is_remembered(d, remembered):
-            st.markdown(_chip("✓ your choice, remembered", _GREEN), unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        c1.button("Move to Subscriptions", key=f"{key_prefix}promo_s_{cid}", use_container_width=True,
-                  on_click=charges_mod.recategorize, args=(store, cid, "subscription_bill"))
-        c2.button("Move to Investments", key=f"{key_prefix}promo_i_{cid}", use_container_width=True,
-                  on_click=charges_mod.recategorize, args=(store, cid, "investment_commitment"))
-        with c3:
-            occ = d.get("occurrences") or []
-            with st.expander(f"Trail ({len(occ)})"):
-                for o in occ[:12]:
-                    st.caption(f"{o.get('date')} · {inr(o.get('amount'))}")
-        _note_input(store, d, key_prefix=key_prefix)
+        note = _staged(cid, "note", d.get("note") or "")
+        if note:
+            st.caption(f"📝 {note}")
+
+        c1, c2 = st.columns(2)
+        c1.button("→ Subscriptions", key=f"{key_prefix}ps_{cid}_{ver}", use_container_width=True,
+                  on_click=_cb_promote, args=(cid, "subscription_bill"))
+        c2.button("→ Investments", key=f"{key_prefix}pi_{cid}_{ver}", use_container_width=True,
+                  on_click=_cb_promote, args=(cid, "investment_commitment"))
+        nkey = f"{key_prefix}note_{cid}_{ver}"
+        st.text_input("Note", value=_staged(cid, "note", d.get("note", "")),
+                      placeholder="What is this for?", key=nkey, label_visibility="collapsed",
+                      on_change=_cb_note, args=(cid, nkey))
+        _trail_list(d, limit=6)

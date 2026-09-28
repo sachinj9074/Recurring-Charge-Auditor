@@ -111,17 +111,19 @@ def landing() -> None:
 
 
 def _demo_login() -> None:
-    st.write("Log in as a sample profile to explore the full two-lens review on synthetic data. "
+    st.write("Log in as a sample profile to explore the full review on synthetic data. "
              "No API key or upload needed.")
     profiles = auth.demo_users()
     if not profiles:
         st.info("No demo profiles found. Run `python scripts/build_demo_cache.py` first.")
         return
     labels = {u.user_id: f"{u.name}  (password: {u.password_hint})" for u in profiles}
-    uid = st.selectbox("Profile", [u.user_id for u in profiles],
-                       format_func=lambda i: labels[i], key="demo_pick")
-    pw = st.text_input("Password", type="password", key="demo_pw")
-    if st.button("Enter demo", type="primary", key="demo_enter"):
+    with st.form("demo_login"):        # a form so Enter submits
+        uid = st.selectbox("Profile", [u.user_id for u in profiles],
+                           format_func=lambda i: labels[i], key="demo_pick")
+        pw = st.text_input("Password", type="password", key="demo_pw")
+        submitted = st.form_submit_button("Enter demo", type="primary", use_container_width=True)
+    if submitted:
         u = auth.authenticate_demo(uid, pw)
         if u:
             st.session_state.demo_backend = _load_demo_backend(uid)
@@ -140,9 +142,11 @@ def _real_auth() -> None:
         st.caption("The demo tab still works, and deterministic detection runs without the key.")
         return
     if auth.access_code_required() and not st.session_state.access_ok:
-        st.write("Access is invite-only for now.")
-        code = st.text_input("Access code", type="password", key="access_code")
-        if st.button("Enter", key="access_enter"):
+        st.write("Access is invite-only for now. Enter the code you were given.")
+        with st.form("access_form"):
+            code = st.text_input("Access code", type="password", key="access_code")
+            entered = st.form_submit_button("Enter", type="primary", use_container_width=True)
+        if entered:
             if auth.check_access_code(code):
                 st.session_state.access_ok = True
                 st.rerun()
@@ -153,9 +157,11 @@ def _real_auth() -> None:
     us = users.UserStore(store_mod.build_base_backend())
     login_tab, signup_tab = st.tabs(["Log in", "Create account"])
     with login_tab:
-        u = st.text_input("Username", key="li_user")
-        p = st.text_input("Password", type="password", key="li_pw")
-        if st.button("Log in", type="primary", key="li_btn"):
+        with st.form("login_form"):
+            u = st.text_input("Username", key="li_user")
+            p = st.text_input("Password", type="password", key="li_pw")
+            logged_in = st.form_submit_button("Log in", type="primary", use_container_width=True)
+        if logged_in:
             res = us.authenticate(u, p)
             if res:
                 acct, dk = res
@@ -165,10 +171,12 @@ def _real_auth() -> None:
             else:
                 st.error("Wrong username or password.")
     with signup_tab:
-        u = st.text_input("Choose a username", key="su_user")
-        n = st.text_input("Your name", key="su_name")
-        p = st.text_input("Password (at least 8 characters)", type="password", key="su_pw")
-        if st.button("Create account", type="primary", key="su_btn"):
+        with st.form("signup_form"):
+            u = st.text_input("Choose a username", key="su_user")
+            n = st.text_input("Your name", key="su_name")
+            p = st.text_input("Password (at least 8 characters)", type="password", key="su_pw")
+            created = st.form_submit_button("Create account", type="primary", use_container_width=True)
+        if created:
             try:
                 acct = us.create(u, n, p)
                 _, dk = us.authenticate(u, p)
@@ -185,29 +193,58 @@ def _real_auth() -> None:
 
 def _sidebar(store) -> None:
     a = st.session_state.auth
+    is_demo = a["mode"] == "demo"
     with st.sidebar:
-        st.markdown(f"**{a['name']}**")
-        st.caption("Demo profile (session only)" if a["mode"] == "demo" else "Signed in")
-        if st.button("Log out", key="logout"):
+        st.markdown(f"### {a['name']}")
+        st.caption("Demo profile (session only)" if is_demo else "Signed in")
+        if st.button("Log out", key="logout", use_container_width=True):
             for k in ("auth", "data_key", "demo_backend", "pending", "access_ok"):
                 st.session_state.pop(k, None)
             st.rerun()
+
         st.divider()
-        st.markdown("**Bank accounts**")
+        st.markdown("**How it works**")
+        if is_demo:
+            st.caption("You are viewing sample data. Explore the tabs on the right; any edits you "
+                       "make here are for this session only.")
+        else:
+            st.markdown("1. Add a bank account below\n"
+                        "2. Upload a statement in the main panel\n"
+                        "3. Review your charges, then **Save**")
+
+        st.divider()
+        st.markdown("**Bank accounts**", help=(
+            "Just a nickname to tell your accounts apart, so an uploaded statement attaches "
+            "to the right one when you have more than one. We never ask for account numbers, "
+            "balances, or login details."))
         accts = accounts.list_accounts(store)
-        for ac in accts:
-            cols = st.columns([4, 1])
-            cols[0].caption(f"{ac['label']}  \n{ac.get('bank_name','') or ''}")
-            if a["mode"] != "demo":
-                cols[1].button("Remove", key=f"del_{ac['id']}",
-                               on_click=accounts.delete_account, args=(store, ac["id"]))
-        if a["mode"] == "demo":
+        if accts:
+            st.caption("Your accounts")
+            for ac in accts:
+                with st.container(border=True):
+                    st.markdown(f"**{ac['label']}**")
+                    if ac.get("bank_name"):
+                        st.caption(ac["bank_name"])
+                    if not is_demo:
+                        st.button("Remove", key=f"del_{ac['id']}", use_container_width=True,
+                                  on_click=accounts.delete_account, args=(store, ac["id"]))
+        elif not is_demo:
+            st.caption("No accounts yet. Add one below to start.")
+
+        if is_demo:
             return
+
+        st.divider()
         if len(accts) < accounts.MAX_BANK_ACCOUNTS:
+            st.markdown("**Add an account**")
             with st.form("add_acct", clear_on_submit=True):
-                lbl = st.text_input("Account label", placeholder="HDFC Salary")
-                bank = st.text_input("Bank name", placeholder="HDFC Bank")
-                if st.form_submit_button("Add account"):
+                lbl = st.text_input("Account label", placeholder="HDFC Salary",
+                                    help="A nickname just for you, e.g. 'HDFC Salary' or 'Joint "
+                                         "account'. Not the account number.")
+                bank = st.text_input("Bank name", placeholder="HDFC Bank",
+                                     help="Which bank this is, so you can tell accounts apart. "
+                                          "No account number or login needed.")
+                if st.form_submit_button("Add account", use_container_width=True):
                     try:
                         accounts.create_account(store, label=lbl, bank_name=bank)
                         st.rerun()
@@ -221,7 +258,8 @@ def _sidebar(store) -> None:
             st.caption("Clear every detected charge. Your login and bank accounts stay; only the "
                        "derived charge list is removed. Re-upload a statement to rebuild it.")
             confirm = st.checkbox("Yes, clear all my detected charges", key="confirm_clear")
-            if st.button("Clear all charges", disabled=not confirm, key="clear_all"):
+            if st.button("Clear all charges", disabled=not confirm, key="clear_all",
+                         use_container_width=True):
                 removed = charges_mod.clear_charges(store)
                 st.success(f"Cleared {removed} charges.")
                 st.rerun()
@@ -229,19 +267,24 @@ def _sidebar(store) -> None:
 
 # --- upload + mapping checkpoint --------------------------------------------
 
-def _upload_section(store) -> None:
+def _controls_section(store, *, has_charges: bool) -> None:
+    """Uploading and settings, tucked into expanders so the review is front-and-centre.
+    'Add a statement' opens by default only before there are charges (or while a
+    mapping checkpoint is pending); 'Detection settings' stays collapsed but still
+    runs, so the review always has current settings."""
+    pending = bool(st.session_state.get("pending"))
+    with st.expander("➕ Add a statement", expanded=(not has_charges) or pending):
+        _upload_body(store)
+    with st.expander("⚙️ Detection settings", expanded=False):
+        st.session_state["_settings"] = render.settings_control()
+
+
+def _upload_body(store) -> None:
     a = st.session_state.auth
-
-    # Filters live with the inputs, upfront, so the user sets the value/history rules
-    # before (and alongside) uploading. The review reads the same session_state.
-    st.session_state["_settings"] = render.settings_control()
-
     accts = accounts.list_accounts(store)
     if a["mode"] != "demo" and not accts:
-        st.info("Add a bank account in the sidebar to upload a statement.")
+        st.info("Add a bank account in the sidebar first, then upload a statement here.")
         return
-
-    st.markdown("### Add a statement")
     if a["mode"] == "demo":
         cap = int(os.getenv("DEMO_LIVE_UPLOADS", "2"))
         st.caption(f"Demo: you may try up to {cap} of your own files this session. They are "
@@ -254,7 +297,7 @@ def _upload_section(store) -> None:
                                format_func=lambda i: acct_options[i], key="up_acct")
     file = st.file_uploader("Upload a CSV, XLS, or XLSX statement", type=["csv", "xls", "xlsx"],
                             key="up_file")
-    if file is not None and st.button("Read file", key="up_read"):
+    if file is not None and st.button("Read file", key="up_read", type="primary"):
         _start_pending(file, acct_id)
 
     if st.session_state.pending:
@@ -380,11 +423,9 @@ def _run_detection(store, grid, m, account_id) -> None:
 
 # --- review -----------------------------------------------------------------
 
-def _review_section(store) -> None:
-    all_c = charges_mod.list_charges(store)
-    st.markdown("### Your recurring charges")
+def _review_section(store, all_c) -> None:
     if not all_c:
-        st.info("No charges yet. Upload a statement above to get started.")
+        st.info("No charges yet. Open **Add a statement** above and upload one to get started.")
         return
     settings = st.session_state.get("_settings") or classify.Settings()
     self_ids = charges_mod.load_self_ids(store)
@@ -396,11 +437,10 @@ def _review_section(store) -> None:
 def _authed_app() -> None:
     store = get_store()
     _sidebar(store)
-    st.title("\U0001f9fe Recurring Charge Auditor")
-    _upload_section(store)
-    st.divider()
-    _review_section(store)
-    st.divider()
+    all_c = charges_mod.list_charges(store)
+    st.markdown("## \U0001f9fe Recurring Charge Auditor")
+    _controls_section(store, has_charges=bool(all_c))
+    _review_section(store, all_c)
     st.caption("This tool organizes and explains what leaves your account. It is not financial or "
                "investment advice.")
 
@@ -408,6 +448,7 @@ def _authed_app() -> None:
 def main() -> None:
     _bridge_secrets()
     _init_state()
+    render.inject_css()
     if st.session_state.auth is None:
         landing()
     else:
