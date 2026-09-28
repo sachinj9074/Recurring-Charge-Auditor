@@ -4,7 +4,7 @@
 
 Reference point: Rocket Money (US) proves the model. This is built for the Indian rails, where the same job is unsolved.
 
-> **Status: Phase 1 MVP.** The full pipeline is built and tested (120 tests): ingestion and normalization, the deterministic detection engine, a distillation funnel that presents a short, confident shortlist instead of every repeat, the numbers-blind LLM enrichment layer, and the Streamlit review UI. A one-command eval scorer reports the safety-critical metrics (all green). The hosted deploy (Streamlit Community Cloud + Cloudflare R2) is documented in [`DEPLOY.md`](DEPLOY.md); a live demo link will be added when it ships.
+> **Status: Phase 1 MVP.** The full pipeline is built and tested (128 tests): ingestion and normalization, the deterministic detection engine, a distillation funnel that presents a short, confident shortlist instead of every repeat, the numbers-blind LLM enrichment layer, and the Streamlit review UI. A one-command eval scorer reports the safety-critical metrics (all green). The hosted deploy (Streamlit Community Cloud + Cloudflare R2) is documented in [`DEPLOY.md`](DEPLOY.md); a live demo link will be added when it ships.
 
 ---
 
@@ -21,7 +21,7 @@ The loop is: **upload a statement, confirm how it was read, detect, split into t
 - **Detects recurring charges deterministically.** UPI is keyed on the VPA, ACH/e-NACH on descriptor plus amount plus day-of-month, cards on the normalized descriptor. It computes cadence, a confidence tier, price creep, and duplicates.
 - **Distils to a shortlist.** Detection is deliberately over-inclusive so nothing real is missed, then a funnel presents only the charges it is confident are genuine, regular subscriptions or bills. A charge qualifies only with a steady amount *and* steady timing for its cadence (monthly on about the same date, weekly on the same weekday for 8+ weeks, daily for 28+ days). Charges that are merely repeats without a steady pattern (daily food, cabs, cash, one-off vendors) are ignored into a collapsed pile; small charges, internal transfers, personal payments, and too-little-history are set aside with a plain reason. Nothing is deleted, and one tap promotes anything back. The goal is roughly ten confident items to review, not ninety.
 - **Separates investments.** SIPs, RDs, and other commitments get their own view, tracked for contributions and consistency, never labelled as leaks.
-- **Lets you confirm.** Keep or dismiss each charge, correct its category, tag internal transfers, and move anything in or out of the shortlist.
+- **Lets you confirm, and remembers.** Keep or dismiss each charge, correct its category, tag internal transfers, add a note, and move anything in or out of the shortlist. Every decision is remembered against the merchant (its VPA or descriptor), so it survives a re-upload and carries forward to future months of the same charge. Subscription cards show the true annual cost and the next expected date.
 
 ## Why it is built this way (the engineering worth reading)
 
@@ -58,7 +58,7 @@ These are non-negotiable, because breaking any one of them silently destroys tru
 
 ## Testing and evals
 
-A pytest suite of 120 tests covers the parts where consistency matters: the encryption round-trips and per-user isolation, all three debit/credit conventions and PII stripping, VPA and aggregator keying, cadence and confidence tiers, the regularity test (day-of-month, weekday, and gap consistency), price-creep and duplicate detection, the distillation funnel, and the numbers-blind enrichment contract.
+A pytest suite of 128 tests covers the parts where consistency matters: the encryption round-trips and per-user isolation, all three debit/credit conventions and PII stripping, VPA and aggregator keying, cadence and confidence tiers, the regularity test (day-of-month, weekday, and gap consistency), price-creep and duplicate detection, the distillation funnel, and the numbers-blind enrichment contract.
 
 A one-command eval scorer runs the real deterministic pipeline over the labelled synthetic statements (which include injected noise) and reports the metrics that matter for a money tool. It has a `--strict` mode that gates the safety-critical ones for CI. Latest run (see [`eval/RESULTS.md`](eval/RESULTS.md)):
 

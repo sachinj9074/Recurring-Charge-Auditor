@@ -33,10 +33,12 @@ def persist_detection(store, charges, *, replace_bank_account_id=None) -> None:
     first, so re-detecting a statement is idempotent."""
     if replace_bank_account_id is not None:
         clear_charges(store, bank_account_id=replace_bank_account_id)
+    prefs = load_merchant_prefs(store)
     for c in charges:
         d = c.to_dict()
         d.setdefault("review_status", PENDING)
         d.setdefault("is_internal_transfer", False)
+        _apply_pref(d, prefs.get(merchant_ref(d)))   # re-apply the user's past decisions
         store.save(_CHARGES, d["id"], d)
 
 
@@ -73,42 +75,97 @@ def _update(store, charge_id: str, **fields) -> dict | None:
 
 
 def set_status(store, charge_id: str, status: str) -> dict | None:
-    return _update(store, charge_id, review_status=status)
+    d = _update(store, charge_id, review_status=status)
+    _remember(store, d, review_status=status)
+    return d
 
 
 def set_category(store, charge_id: str, category: str) -> dict | None:
     # Stamp the source so the classifier treats a human correction as authoritative
     # (it overrides the auto-funnel), unlike the LLM's category guess.
-    return _update(store, charge_id, category=category, category_source="user")
+    d = _update(store, charge_id, category=category, category_source="user")
+    _remember(store, d, category=category, category_source="user")
+    return d
 
 
 def set_internal_transfer(store, charge_id: str, flag: bool) -> dict | None:
-    return _update(store, charge_id, is_internal_transfer=bool(flag))
+    d = _update(store, charge_id, is_internal_transfer=bool(flag))
+    _remember(store, d, is_internal_transfer=bool(flag))
+    return d
 
 
 def set_note(store, charge_id: str, note: str) -> dict | None:
     """The user's own free-text note for a charge (what it is really for), so a
     cryptic VPA becomes recognisable. Stored per user (encrypted); never sent to
     the LLM."""
-    return _update(store, charge_id, note=(note or "").strip())
+    d = _update(store, charge_id, note=(note or "").strip())
+    _remember(store, d, note=(note or "").strip())
+    return d
 
 
 def recategorize(store, charge_id: str, category: str) -> dict | None:
     """Promote/move a charge to a category authoritatively: stamps the user source,
     clears any dismissal and internal-transfer tag. Used by the Set-aside move
     buttons so an item lands firmly in Subscriptions or Investments."""
-    return _update(store, charge_id, category=category, category_source="user",
-                   review_status=CONFIRMED, is_internal_transfer=False)
+    d = _update(store, charge_id, category=category, category_source="user",
+                review_status=CONFIRMED, is_internal_transfer=False)
+    _remember(store, d, category=category, category_source="user",
+              review_status=CONFIRMED, is_internal_transfer=False)
+    return d
 
 
 def delete_charge(store, charge_id: str) -> bool:
     return store.delete(_CHARGES, charge_id)
 
 
-# --- per-user self identifiers (for internal-transfer detection) -------------
+# --- per-merchant memory of the user's decisions -----------------------------
+# Detection assigns a fresh id every run, so a decision tied to a charge id would be
+# lost on re-upload. Keying it on the stable merchant identity instead makes a
+# decision persist across re-uploads AND carry to future months of that merchant:
+# tag a person's VPA as a transfer once, and it stays set aside forever.
 
 _META = "meta"
 _SELF_IDS = "self_ids"
+_MERCHANT_PREFS = "merchant_prefs"
+# Only the user's own decisions are remembered, never engine-computed numbers.
+_PREF_FIELDS = ("category", "category_source", "is_internal_transfer", "review_status", "note")
+
+
+def merchant_ref(d: dict) -> str:
+    """The stable identity a preference is keyed on: the VPA for UPI, else the
+    normalized descriptor. Lower-cased; empty when neither is present."""
+    return (d.get("vpa") or d.get("merchant_key") or "").strip().lower()
+
+
+def load_merchant_prefs(store) -> dict:
+    """{merchant_ref: {field: value}} of the user's remembered decisions."""
+    try:
+        return dict(store.load(_META, _MERCHANT_PREFS).get("prefs", {}))
+    except Exception:
+        return {}
+
+
+def _apply_pref(d: dict, entry: dict | None) -> None:
+    """Overlay a remembered decision onto a freshly detected charge dict."""
+    if not entry:
+        return
+    for k in _PREF_FIELDS:
+        if entry.get(k) is not None:
+            d[k] = entry[k]
+
+
+def _remember(store, d: dict | None, **fields) -> None:
+    """Record the user's decision for a charge's merchant, so it re-applies next time."""
+    if not d:
+        return
+    ref = merchant_ref(d)
+    if not ref:
+        return
+    prefs = load_merchant_prefs(store)
+    entry = dict(prefs.get(ref, {}))
+    entry.update({k: v for k, v in fields.items() if k in _PREF_FIELDS})
+    prefs[ref] = entry
+    store.save(_META, _MERCHANT_PREFS, {"id": _MERCHANT_PREFS, "prefs": prefs})
 
 
 def load_self_ids(store) -> list[str]:

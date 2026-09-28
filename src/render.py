@@ -55,6 +55,52 @@ _AMBER = ("#fff3cd", "#7a5b00")
 _BLUE = ("#dbeafe", "#1e40af")
 _RED = ("#fee2e2", "#991b1b")
 _GRAY = ("#eef0f3", "#33363d")
+_GREEN = ("#dcfce7", "#166534")
+
+# Occurrences per year, to show a subscription's true annual cost (display only; the
+# per-occurrence amount and cadence are the engine's, this just multiplies for the view).
+_PERIODS_PER_YEAR = {"daily": 365, "weekly": 52, "fortnightly": 26, "monthly": 12,
+                     "bi-monthly": 6, "quarterly": 4, "annual": 1}
+
+
+def _chip(text: str, colors: tuple[str, str]) -> str:
+    bg, fg = colors
+    return (f"<span style='background:{bg};color:{fg};border-radius:6px;padding:2px 8px;"
+            f"margin-right:6px;font-size:0.8em;white-space:nowrap'>{text}</span>")
+
+
+def annual_cost(d: dict) -> float | None:
+    """Roughly what this charge costs in a year, or None for an irregular cadence."""
+    n = _PERIODS_PER_YEAR.get(d.get("cadence"))
+    if not n:
+        return None
+    return float(d.get("representative_amount") or 0) * n
+
+
+def next_expected(d: dict) -> str | None:
+    """The next likely charge date (last seen + the typical gap), for active series."""
+    import datetime as _dt
+    gap, last = d.get("median_gap_days"), d.get("last_seen")
+    if not gap or not last or d.get("status") != "active":
+        return None
+    try:
+        y, m, day = (int(x) for x in str(last).split("-"))
+        return (_dt.date(y, m, day) + _dt.timedelta(days=round(float(gap)))).isoformat()
+    except Exception:
+        return None
+
+
+def _trail(d: dict) -> None:
+    occ = d.get("occurrences") or []
+    if not occ:
+        return
+    with st.expander(f"Transaction trail ({len(occ)})"):
+        for o in occ[:24]:
+            st.caption(f"{o.get('date')} · {inr(o.get('amount'))}")
+
+
+def _is_remembered(d: dict, remembered) -> bool:
+    return bool(remembered) and charges_mod.merchant_ref(d) in remembered
 
 
 def _badges(d: dict) -> list[tuple[str, str, str]]:
@@ -86,21 +132,33 @@ def _sorted(charges: list[dict]) -> list[dict]:
 
 # --- one charge card --------------------------------------------------------
 
-def charge_card(store, d: dict, *, lens: str, key_prefix: str, editable: bool = True) -> None:
+def charge_card(store, d: dict, *, lens: str, key_prefix: str, editable: bool = True,
+                remembered=None) -> None:
     cid = d["id"]
     with st.container(border=True):
         top = st.columns([4, 1])
         with top[0]:
-            st.markdown(f"**{_title(d)}**  \n"
-                        f"{inr(d['representative_amount'])} {cadence_phrase(d.get('cadence',''))}")
+            amount_line = f"{inr(d['representative_amount'])} {cadence_phrase(d.get('cadence',''))}"
+            if lens == "A":                        # subscriptions: show the true yearly cost
+                ac = annual_cost(d)
+                if ac:
+                    amount_line += f"  ·  ≈ {inr(ac)}/year"
+            st.markdown(f"**{_title(d)}**  \n{amount_line}")
         with top[1]:
             st.caption(f"{d.get('confidence','')}")
 
-        if d.get("explanation"):
+        # A saved note is the most useful line to see at a glance; else the explanation.
+        if d.get("note"):
+            st.caption(f"📝 {d['note']}")
+        elif d.get("explanation"):
             st.caption(d["explanation"])
 
         # meta line
         meta = f"{d.get('occurrence_count', 0)} charges · {d.get('first_seen','')} to {d.get('last_seen','')}"
+        if lens == "A":
+            nx = next_expected(d)
+            if nx:
+                meta += f" · next ≈ {nx}"
         if lens == "B":
             deployed = inr(d.get("total_amount", 0))
             ran = "ran on time" if d.get("status") == "active" and not d.get("missed_payment") else \
@@ -108,13 +166,13 @@ def charge_card(store, d: dict, *, lens: str, key_prefix: str, editable: bool = 
             meta += f" · {deployed} deployed in window · {ran}"
         st.caption(meta)
 
-        badges = _badges(d)
-        if badges:
-            chips = "".join(
-                f"<span style='background:{bg};color:{fg};border-radius:6px;padding:2px 8px;"
-                f"margin-right:6px;font-size:0.8em;white-space:nowrap'>{text}</span>"
-                for text, bg, fg in badges)
-            st.markdown(chips, unsafe_allow_html=True)
+        chips = [_chip(text, (bg, fg)) for text, bg, fg in _badges(d)]
+        if _is_remembered(d, remembered):
+            chips.append(_chip("✓ your choice, remembered", _GREEN))
+        if chips:
+            st.markdown("".join(chips), unsafe_allow_html=True)
+
+        _trail(d)
 
         if not editable:
             return
@@ -202,16 +260,18 @@ def settings_control() -> classify.Settings:
     return classify.Settings(min_amount=float(min_amount), min_months=int(min_months))
 
 
-def _render_group(store, charges: list[dict], *, lens: str, key_prefix: str) -> None:
+def _render_group(store, charges: list[dict], *, lens: str, key_prefix: str,
+                  remembered=None) -> None:
     ranked = _sorted(charges)
     high_med = [c for c in ranked if c.get("confidence") in ("HIGH", "MEDIUM")]
     low = [c for c in ranked if c.get("confidence") == "LOW"]
     for d in high_med:
-        charge_card(store, d, lens=lens, key_prefix=key_prefix)
+        charge_card(store, d, lens=lens, key_prefix=key_prefix, remembered=remembered)
     if low:
         with st.expander(f"Lower-confidence matches ({len(low)})"):
             for d in low:
-                charge_card(store, d, lens=lens, key_prefix=f"{key_prefix}low_")
+                charge_card(store, d, lens=lens, key_prefix=f"{key_prefix}low_",
+                            remembered=remembered)
 
 
 def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
@@ -221,6 +281,7 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
     ignored = placed.get("ignored", {})
     aside_n = sum(len(v) for v in aside.values())
     ignored_n = sum(len(v) for v in ignored.values())
+    remembered = set(charges_mod.load_merchant_prefs(store).keys())   # merchants you have decided on
 
     # Plain count metrics, no delta: the monthly figure is a total, not an increase,
     # so it goes in a caption rather than st.metric's green up-arrow.
@@ -244,14 +305,14 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
         st.caption("The charges we are confident are genuine, regular subscriptions or bills. "
                    "Keep what you use; dismiss what you do not.")
         if subs:
-            _render_group(store, subs, lens="A", key_prefix="s_")
+            _render_group(store, subs, lens="A", key_prefix="s_", remembered=remembered)
         else:
             st.info("No confident subscriptions found. Check Set aside, or lower the minimum value.")
     with tab_i:
         st.caption("Contributions only: this never shows value, returns, or NAV. Investments are "
                    "never treated as leaks.")
         if inv:
-            _render_group(store, inv, lens="B", key_prefix="i_")
+            _render_group(store, inv, lens="B", key_prefix="i_", remembered=remembered)
         else:
             st.info("No investments detected.")
     with tab_x:
@@ -262,7 +323,7 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
         for group, items in sorted(aside.items(), key=lambda kv: -len(kv[1])):
             with st.expander(f"{group} ({len(items)})"):
                 for d in _sorted(items):
-                    _set_aside_card(store, d, key_prefix="x_")
+                    _set_aside_card(store, d, key_prefix="x_", remembered=remembered)
         if ignored_n:
             with st.expander(f"Everything else we ignored ({ignored_n})"):
                 st.caption("Random, one-off, or irregular spend with no steady amount or schedule "
@@ -271,17 +332,21 @@ def funnel_view(store, all_charges: list[dict], settings: classify.Settings,
                 for group, items in sorted(ignored.items(), key=lambda kv: -len(kv[1])):
                     st.markdown(f"**{group}** · {len(items)}")
                     for d in _sorted(items):
-                        _set_aside_card(store, d, key_prefix="ig_")
+                        _set_aside_card(store, d, key_prefix="ig_", remembered=remembered)
 
 
-def _set_aside_card(store, d: dict, *, key_prefix: str = "x_") -> None:
+def _set_aside_card(store, d: dict, *, key_prefix: str = "x_", remembered=None) -> None:
     cid = d["id"]
     with st.container(border=True):
         reason = (d.get("_placement") or {}).get("reason", "")
-        st.markdown(f"**{_title(d)}** · {inr(d['representative_amount'])} "
-                    f"{cadence_phrase(d.get('cadence',''))}")
+        title = f"**{_title(d)}** · {inr(d['representative_amount'])} {cadence_phrase(d.get('cadence',''))}"
+        st.markdown(title)
         if reason:
             st.caption(reason)
+        if d.get("note"):
+            st.caption(f"📝 {d['note']}")
+        if _is_remembered(d, remembered):
+            st.markdown(_chip("✓ your choice, remembered", _GREEN), unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         c1.button("Move to Subscriptions", key=f"{key_prefix}promo_s_{cid}", use_container_width=True,
                   on_click=charges_mod.recategorize, args=(store, cid, "subscription_bill"))

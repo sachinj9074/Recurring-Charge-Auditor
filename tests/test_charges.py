@@ -48,6 +48,37 @@ def test_redetecting_replaces_instead_of_appending():
     assert len(charges.list_charges(s)) == 2
 
 
+def test_merchant_ref_prefers_vpa():
+    assert charges.merchant_ref({"vpa": "x@ybl", "merchant_key": "x"}) == "x@ybl"
+    assert charges.merchant_ref({"vpa": None, "merchant_key": "Netflix Corp"}) == "netflix corp"
+
+
+def test_decision_is_remembered_across_redetection():
+    # A dismissal and a note survive a re-upload (fresh ids), keyed on the merchant.
+    s = _store()
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    spot = next(c for c in charges.list_charges(s) if c.get("vpa") == "spotify@hdfcbank")
+    charges.set_status(s, spot["id"], charges.DISMISSED)
+    charges.set_note(s, spot["id"], "old trial")
+
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    spot2 = next(c for c in charges.list_charges(s) if c.get("vpa") == "spotify@hdfcbank")
+    assert spot2["id"] != spot["id"]                     # genuinely re-detected
+    assert spot2["review_status"] == charges.DISMISSED   # decision remembered
+    assert spot2["note"] == "old trial"
+
+
+def test_category_memory_carries_to_future_months():
+    s = _store()
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    axis = next(c for c in charges.list_charges(s) if "axis" in c["merchant_key"])
+    charges.set_category(s, axis["id"], "subscription_bill")   # user override
+
+    charges.persist_detection(s, _detected(), replace_bank_account_id="a")
+    axis2 = next(c for c in charges.list_charges(s) if "axis" in c["merchant_key"])
+    assert axis2["category"] == "subscription_bill" and axis2["category_source"] == "user"
+
+
 def test_clear_charges_all_and_by_account():
     s = _store()
     charges.persist_detection(s, _detected())
