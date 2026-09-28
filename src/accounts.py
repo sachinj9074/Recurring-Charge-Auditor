@@ -2,7 +2,7 @@
 
 A user has one or more bank accounts; every transaction and every detected charge
 carries its `bank_account_id`, so the schema and engine are multi-account from
-day one (see recurring-charge-auditor-SPEC.md section 9). The two-account limit is
+day one (see recurring-charge-auditor-SPEC.md section 9). The account limit is
 a *product* cap for the MVP, enforced here, not an architectural one: raising
 MAX_BANK_ACCOUNTS is the only change needed to allow more.
 
@@ -18,7 +18,7 @@ import datetime
 from src import schema
 from src.ids import new_id
 
-MAX_BANK_ACCOUNTS = 2   # MVP UI/product cap; the engine has no such limit.
+MAX_BANK_ACCOUNTS = 5   # MVP UI/product cap; the engine has no such limit.
 
 _BANKS = "banks"
 _CHARGES = "charges"

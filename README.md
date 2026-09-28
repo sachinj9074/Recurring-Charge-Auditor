@@ -4,7 +4,13 @@
 
 Reference point: Rocket Money (US) proves the model. This is built for the Indian rails, where the same job is unsolved.
 
-> **Status: Phase 1 MVP.** The full pipeline is built and tested (128 tests): ingestion and normalization, the deterministic detection engine, a distillation funnel that presents a short, confident shortlist instead of every repeat, the numbers-blind LLM enrichment layer, and the Streamlit review UI. A one-command eval scorer reports the safety-critical metrics (all green). The hosted deploy (Streamlit Community Cloud + Cloudflare R2) is documented in [`DEPLOY.md`](DEPLOY.md); a live demo link will be added when it ships.
+> **Status: Phase 1 MVP, live.** The full pipeline is built and tested (134 tests): ingestion and normalization (CSV, XLS, XLSX, and digital PDF), the deterministic detection engine, a distillation funnel that presents a short, confident shortlist instead of every repeat, the numbers-blind LLM enrichment layer, and the Streamlit review UI. A one-command eval scorer reports the safety-critical metrics (all green). It is deployed on Streamlit Community Cloud with Cloudflare R2 for durable, encrypted storage.
+
+## Try it
+
+**[Open the live app](https://recurring-charge-auditor-vtfykp65khqfzg8achwsab.streamlit.app/)**. It opens on a two-lens review of synthetic sample data, so you can explore the whole thing, subscriptions, investments, price hikes, and duplicates, with no upload and no key. (Streamlit's free tier can take a few seconds to wake if the app has been idle.)
+
+To run it on your own statement, choose **Use it for real**: it is behind an access code (so the shared API key cannot be misused), and your uploads are processed and then reduced to the derived charge list, encrypted under your own password. Ask me for a code if you want to try it.
 
 ---
 
@@ -16,12 +22,13 @@ People do not know their full list of recurring charges. They are scattered acro
 
 The loop is: **upload a statement, confirm how it was read, detect, split into two lenses, confirm each charge.**
 
-- **Reads any bank's tabular statement** (CSV, XLS, XLSX). Column detection is deterministic first, with an LLM fallback for layouts it has never seen, so there is no per-bank code.
+- **Reads any bank's statement.** CSV, XLS, XLSX, and digital (text-based) PDF, including the password-protected PDFs most banks email. Column detection is deterministic first, with an LLM fallback for layouts it has never seen, so there is no per-bank code.
 - **Confirms the mapping before trusting a number.** A mandatory checkpoint shows the inferred columns, a three-row preview, and the debit/credit counts, so a reversed debit/credit convention (the single most dangerous ingestion error) is caught by you, not discovered later.
 - **Detects recurring charges deterministically.** UPI is keyed on the VPA, ACH/e-NACH on descriptor plus amount plus day-of-month, cards on the normalized descriptor. It computes cadence, a confidence tier, price creep, and duplicates.
 - **Distils to a shortlist.** Detection is deliberately over-inclusive so nothing real is missed, then a funnel presents only the charges it is confident are genuine, regular subscriptions or bills. A charge qualifies only with a steady amount *and* steady timing for its cadence (monthly on about the same date, weekly on the same weekday for 8+ weeks, daily for 28+ days). Charges that are merely repeats without a steady pattern (daily food, cabs, cash, one-off vendors) are ignored into a collapsed pile; small charges, internal transfers, personal payments, and too-little-history are set aside with a plain reason. Nothing is deleted, and one tap promotes anything back. The goal is roughly ten confident items to review, not ninety.
 - **Separates investments.** SIPs, RDs, and other commitments get their own view, tracked for contributions and consistency, never labelled as leaks.
 - **Lets you confirm, and remembers.** Keep or dismiss each charge, correct its category, tag internal transfers, add a note, and move anything in or out of the shortlist. Every decision is remembered against the merchant (its VPA or descriptor), so it survives a re-upload and carries forward to future months of the same charge. Subscription cards show the true annual cost and the next expected date.
+- **Tracks across accounts.** Add up to five bank accounts, and every charge carries its source account, so the same service billed on two different cards is spotted as one duplicate across accounts.
 
 ## Why it is built this way (the engineering worth reading)
 
@@ -31,24 +38,61 @@ The loop is: **upload a statement, confirm how it was read, detect, split into t
 
 3. **Aggregators are split by amount and day.** A descriptor like `RAZORPAYSOFTWAREPRIV` hides many unrelated mandates. Grouping by the name alone produces garbage; grouping by descriptor plus amount plus day-of-month separates them cleanly, while a genuine price change on the same mandate is merged back into one charge and flagged.
 
-4. **Investments are a separate lens, contributions only.** On a real statement, most auto-debits were SIPs (roughly thirty thousand rupees a month) versus a few hundred to a couple of thousand rupees of actual subscriptions. A tool that called the SIPs "subscriptions leaking money" would lose the user on the first screen. Lens B shows what was contributed, when, and whether a SIP ran on time or stopped. It never shows value, returns, XIRR, NAV, or units, because those are not in a bank statement.
+4. **Investments are a separate lens, contributions only.** On a real statement, most auto-debits were SIPs (roughly thirty thousand rupees a month) versus a few hundred to a couple of thousand rupees of actual subscriptions. A tool that called the SIPs "subscriptions leaking money" would lose the user on the first screen. The investment lens shows what was contributed, when, and whether a SIP ran on time or stopped. It never shows value, returns, XIRR, NAV, or units, because those are not in a bank statement.
 
 5. **A privacy firewall runs down the middle.** Personal identifiers (name, address, account number, running balance) are stripped at ingestion, before anything reaches the model or storage. Only the derived charge list and your confirmations are stored, encrypted per user, and the raw statement is discarded after processing. A breach should expose "this person pays for Spotify", not a full transaction history and balances.
 
-6. **Detect for recall, present for precision.** The detector finds everything that repeats, so a real charge is never lost. A separate, deterministic funnel then decides what to show, keying on a genuine recurring pattern: a steady amount and steady timing for the cadence (same day-of-month for a monthly charge, same weekday for a weekly one, a near-uniform gap otherwise). A stable, regular, material charge is a subscription; a self-transfer or a small-but-regular charge is set aside with a reason; spend with no steady amount or schedule (a merchant hit 47 then 74 days apart, daily food at varying prices) is ignored into a collapsed pile rather than shown. The LLM sharpens only the borderline calls (is this recurring merchant a subscription, a shop, or a person?). Nothing is silently dropped or deleted; it is demoted, and one tap promotes it back.
+6. **A PDF is read from its text, then verified by you.** A digital PDF has no columns, only words at positions, so the text layer is reconstructed into the same grid the CSV path uses (words grouped into lines, split into cells at the wide gaps between columns). Because the layout is positional rather than structural, the same mapping-confirmation checkpoint that protects a CSV protects a PDF: you see the columns and the debit total before any detection runs. Scanned or photographed statements carry no text, so they are rejected with a clear message rather than silently misread.
+
+7. **Detect for recall, present for precision.** The detector finds everything that repeats, so a real charge is never lost. A separate, deterministic funnel then decides what to show, keying on a genuine recurring pattern: a steady amount and steady timing for the cadence (same day-of-month for a monthly charge, same weekday for a weekly one, a near-uniform gap otherwise). A stable, regular, material charge is a subscription; a self-transfer or a small-but-regular charge is set aside with a reason; spend with no steady amount or schedule (a merchant hit 47 then 74 days apart, daily food at varying prices) is ignored into a collapsed pile rather than shown. The LLM sharpens only the borderline calls (is this recurring merchant a subscription, a shop, or a person?). Nothing is silently dropped or deleted; it is demoted, and one tap promotes it back.
+
+## How it works
+
+```mermaid
+flowchart TB
+    A["Statement<br/>CSV · XLS · XLSX · digital PDF<br/>any Indian bank"] --> B["Read into a grid<br/>PII stripped at ingestion"]
+    B --> C{"Confirm how it was read<br/>columns and debit/credit direction"}
+    C --> D["Detect · deterministic core<br/>recurrence · cadence · price creep · duplicates"]
+    D --> E["Enrich · LLM, numbers-blind<br/>brand name · category · one-line note"]
+    E --> F{"Distil · steady amount<br/>AND steady timing?"}
+    F -->|"yes, material"| G["Subscriptions and bills<br/>the confident shortlist"]
+    F -->|"investment"| H["Investments<br/>contributions only, never leaks"]
+    F -->|"small · transfer · too new"| I["Set aside<br/>held back with a reason"]
+    F -->|"no steady pattern"| J["Ignored<br/>a collapsed pile, not deleted"]
+    G --> K["Review and confirm<br/>keep · dismiss · recategorise · note"]
+    H --> K
+    I --> K
+    K --> L[("Store the derived list only<br/>encrypted per user; raw statement discarded")]
+```
+
+In plain terms: the statement is read into a plain grid with personal details stripped out, you confirm the tool read it the right way round, the deterministic core finds the recurring patterns, the model adds a readable name and category without ever seeing a number, and a funnel sorts everything into a short shortlist, a separate investments view, a small set-aside list, and a collapsed ignored pile. You keep or dismiss each item, and only the confirmed list is stored, encrypted.
+
+## See it in action
+
+The subscriptions shortlist: a short, confident list of genuine recurring charges, each with its true monthly and annual cost, a confidence tag, and badges for a price rise or a cross-account duplicate.
+
+![The subscriptions review: three summary tiles (subscriptions, investments, set aside) above a list of cards. Netflix is tagged with a price rise, two Spotify cards are tagged as a duplicate across accounts, and each card has Keep, Dismiss, and a Details and edit expander.](docs/img/review-subscriptions.png)
+
+The investments lens: the same detection, shown as contributions only. It reports what went in and whether each SIP ran on time, and never shows value, returns, or NAV.
+
+![The investments view: five cards (a Groww SIP, an Axis mutual fund SIP, an Aditya Birla SIP, a clearing-corporation equity buy, and a recurring deposit), each showing the monthly contribution, the total in the window, and that it ran on time, under a note that says contributions only, never value or returns.](docs/img/review-investments.png)
+
+Confirming a charge: open a card to correct its category, tag it as a transfer between your own accounts, add a note, or read the transaction trail. Here Netflix's trail shows the price rising from 499 to 649 mid-window.
+
+![A Netflix card expanded to show the edit controls: a category dropdown set to Subscription or bill, a checkbox for a transfer between your own accounts, a note field, and the recent transactions listing six months with the amount rising from 499 to 649.](docs/img/review-card-open.png)
 
 ## A quick example (from the synthetic demo data)
 
 A six-month statement across two accounts produces a clean split:
 
-- **Lens B, investments:** about thirty-two thousand rupees a month across a Groww SIP, an Axis mutual fund SIP, an Aditya Birla SIP, a clearing-corporation equity buy, and a recurring deposit. Tracked, never flagged as a leak.
-- **Lens A, subscriptions:** about eighteen hundred rupees a month across Spotify, Netflix, YouTube Premium, and two mandates billed through Razorpay. Netflix is flagged for a price rise (499 to 649), and Spotify is flagged as a duplicate billed on both accounts.
+- **Investments:** about thirty-two thousand rupees a month across a Groww SIP, an Axis mutual fund SIP, an Aditya Birla SIP, a clearing-corporation equity buy, and a recurring deposit. Tracked, never flagged as a leak.
+- **Subscriptions:** about eighteen hundred rupees a month across Spotify, Netflix, YouTube Premium, and two mandates billed through Razorpay. Netflix is flagged for a price rise (499 to 649), and Spotify is flagged as a duplicate billed on both accounts.
 
 ## Tech stack
 
 - **Python 3.12**, **Streamlit** for the app surface
 - **Anthropic Claude** for enrichment only, tiered (a fast model for bulk labelling, a stronger model reserved for hard cases), behind a JSON-schema contract
-- **pandas / openpyxl** for tabular ingestion, **jsonschema** for the data contracts
+- **pandas / openpyxl** for tabular ingestion, **pdfplumber** for reading the text layer of digital PDFs, **jsonschema** for the data contracts
 - **cryptography** for per-user AES-GCM encryption (a scrypt-wrapped data key), **boto3** for Cloudflare R2 on the hosted deploy
 - **pytest** for the test suite
 
@@ -58,7 +102,7 @@ These are non-negotiable, because breaking any one of them silently destroys tru
 
 ## Testing and evals
 
-A pytest suite of 128 tests covers the parts where consistency matters: the encryption round-trips and per-user isolation, all three debit/credit conventions and PII stripping, VPA and aggregator keying, cadence and confidence tiers, the regularity test (day-of-month, weekday, and gap consistency), price-creep and duplicate detection, the distillation funnel, and the numbers-blind enrichment contract.
+A pytest suite of 134 tests covers the parts where consistency matters: the encryption round-trips and per-user isolation, all three debit/credit conventions and PII stripping, the CSV and PDF ingestion paths (a digital PDF read yields the same transactions as the equivalent CSV, and a password-protected or textless PDF is handled correctly), VPA and aggregator keying, cadence and confidence tiers, the regularity test (day-of-month, weekday, and gap consistency), price-creep and duplicate detection, the distillation funnel, and the numbers-blind enrichment contract.
 
 A one-command eval scorer runs the real deterministic pipeline over the labelled synthetic statements (which include injected noise) and reports the metrics that matter for a money tool. It has a `--strict` mode that gates the safety-critical ones for CI. Latest run (see [`eval/RESULTS.md`](eval/RESULTS.md)):
 
@@ -76,6 +120,14 @@ python -m pytest -q            # unit tests
 python eval/run_eval.py --strict   # eval table + safety gate
 ```
 
+## Scope and honest limitations
+
+- **Digital PDFs only.** A PDF is read from its text layer. A scanned or photographed statement carries no text, so it is rejected with a clear message rather than guessed at; OCR is a later track. A very unusual PDF layout may need a column correction at the confirmation step, which is exactly what that step is for, and the CSV/XLS export is always the reliable fallback.
+- **The eval set is synthetic and small.** The scorer runs the real pipeline over labelled synthetic statements with injected noise; the numbers are honest baselines, not a large-scale accuracy claim on real data. Growing the labelled set is the next measurement step.
+- **Detection thresholds are deterministic, not learned.** Regularity, cadence, and price-creep are fixed, tunable rules in code. This is deliberate (consistency over cleverness), but it means an unusual cadence can land in "set aside" until you promote it.
+- **Multi-user is personal-scale.** Real accounts get durable, per-user-encrypted storage (Cloudflare R2 when hosted, or a git-ignored encrypted local folder otherwise) and up to five bank accounts each. That is enough for you and a few trusted people, not a compliance-grade service. Because records are encrypted with your password, a forgotten password cannot be recovered in this version.
+- **Enrichment needs a key.** With an Anthropic key, cryptic descriptors become clean brand names and categories. Without one, the deterministic detection still runs end to end; the names and categories are just less polished.
+
 ## Privacy
 
 Personal data shared by real users is treated carefully: identifiers are stripped at ingestion, only the derived charge list and confirmations are stored (encrypted per user, so the host holds only ciphertext), and the raw statement is discarded after processing. The public demo runs on synthetic data only.
@@ -83,6 +135,9 @@ Personal data shared by real users is treated carefully: identifiers are strippe
 ## Run it locally
 
 ```bash
+git clone https://github.com/sachinj9074/Recurring-Charge-Auditor.git
+cd Recurring-Charge-Auditor
+
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 # source .venv/bin/activate   # macOS / Linux
@@ -95,14 +150,14 @@ python -m pytest -q                    # run the tests
 streamlit run src/app.py               # start the app
 ```
 
-The app opens on the **Explore the demo / Use it for real** screen. In the demo, log in as a sample profile (its password is shown on screen) to browse the two-lens review with no key. To try your own statement, choose **Use it for real**, create an account, add a bank account, and upload a CSV/XLS/XLSX (for example `samples/sample_hdfc.csv`).
+The app opens on the **Explore the demo / Use it for real** screen. In the demo, log in as a sample profile (its password is shown on screen) to browse the two-lens review with no key. To try your own statement, choose **Use it for real**, create an account, add a bank account, and upload a CSV/XLS/XLSX/PDF (for example `samples/sample_icici.csv` or `samples/sample_icici.pdf`).
 
 Copy `.env.example` to `.env` and paste your own Anthropic API key to enable enrichment. The key stays server-side and is never committed. With no key, the deterministic detection still runs end to end. For safety the app fails closed: whenever a key is set, you must also set `REAL_ACCESS_CODE` (any value you choose) or real mode stays disabled, so a forgotten code can never expose the key. Enter that code once to unlock real mode.
 
 ## Roadmap
 
-- **Phase 1 (MVP, current):** tabular upload from any bank, mapping confirmation, deterministic detection, LLM enrichment, the two-lens review UI, per-user encrypted storage, cross-account duplicates, price-creep detection.
-- **Phase 1.5:** digital PDF ingestion.
+- **Phase 1 (MVP, current):** upload from any bank as CSV, XLS, XLSX, or digital PDF (including password-protected), mapping confirmation, deterministic detection, LLM enrichment, the two-lens review UI, per-user encrypted storage, up to five accounts, cross-account duplicates, price-creep detection.
+- **Next:** scanned-PDF OCR (photographed statements), and a larger, real-world labelled eval set.
 - **Phase 2 (Act):** per-merchant cancellation steps, pre-filled cancel messages, pre-renewal and pre-trial nudges.
 - **Phase 3:** email-receipt ingestion for trial-conversion and price-hike signals.
 - **Phase 4:** Account Aggregator as the consented, scalable backbone.

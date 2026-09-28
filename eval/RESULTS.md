@@ -1,6 +1,6 @@
 # Eval results
 
-_Generated 2026-09-27 by `python eval/run_eval.py` over the synthetic statements in `samples/`. Deterministic pipeline, no API key required._
+_Generated 2026-09-28 by `python eval/run_eval.py` over the synthetic statements in `samples/`. Deterministic pipeline, no API key required._
 
 | Metric | Result |
 |---|---|

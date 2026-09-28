@@ -132,21 +132,59 @@ def write_hdfc(path: str) -> None:
         w.writerow(["", "Closing Balance", "", "", inr(balance)])   # footer (no date -> skipped)
 
 
-def write_icici(path: str) -> None:
+_ICICI_HEADER = ["Txn Date", "Transaction Remarks", "Amount (INR)", "Dr/Cr", "Balance"]
+
+
+def _icici_rows(events) -> list[list[str]]:
+    """The ICICI table rows (amount_flag convention) as strings, with a running
+    balance. Shared by the CSV and PDF writers so both files hold identical data."""
+    rows, balance = [], 90000.00
+    for date, narr, amt, direction in sorted(events, key=lambda e: e[0]):
+        flag = "DR" if direction == "debit" else "CR"
+        balance += (-amt if direction == "debit" else amt)
+        rows.append([date.strftime("%d-%m-%Y"), narr, inr(amt), flag, inr(balance)])
+    return rows
+
+
+def write_icici(path: str, events=None) -> None:
     """Amount + Dr/Cr flag convention, with preamble + balance."""
-    ev = sorted(_icici_events(), key=lambda e: e[0])
-    balance = 90000.00
+    rows = _icici_rows(events if events is not None else _icici_events())
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["ICICI BANK"])
         w.writerow(["Account Holder: RAHUL MEHTA"])           # PII: must be stripped
         w.writerow(["Account Number: 001501XXXXXX9987"])      # PII: must be stripped
         w.writerow([])
-        w.writerow(["Txn Date", "Transaction Remarks", "Amount (INR)", "Dr/Cr", "Balance"])
-        for date, narr, amt, direction in ev:
-            flag = "DR" if direction == "debit" else "CR"
-            balance += (-amt if direction == "debit" else amt)
-            w.writerow([date.strftime("%d-%m-%Y"), narr, inr(amt), flag, inr(balance)])
+        w.writerow(_ICICI_HEADER)
+        for row in rows:
+            w.writerow(row)
+
+
+def write_icici_pdf(path: str, events=None, *, password: str | None = None) -> None:
+    """The same ICICI statement as a digital PDF: a ruled table under a short
+    preamble, exercising the PDF ingestion path. Optionally password-protected.
+
+    fpdf2 is imported lazily so the rest of this generator runs without it."""
+    from fpdf import FPDF
+
+    rows = _icici_rows(events if events is not None else _icici_events())
+    pdf = FPDF(orientation="L", format="A4")   # landscape: narrations are long
+    if password:
+        pdf.set_encryption(owner_password=password + "-owner", user_password=password)
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "ICICI BANK", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", size=9)
+    pdf.cell(0, 5, "Account Holder: RAHUL MEHTA", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5, "Account Number: 001501XXXXXX9987", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(3)
+    pdf.set_font("Helvetica", size=8)
+    with pdf.table(col_widths=(22, 150, 26, 14, 30), text_align="LEFT",
+                   first_row_as_headings=True, padding=2) as table:
+        table.row(_ICICI_HEADER)
+        for row in rows:
+            table.row(row)
+    pdf.output(path)
 
 
 def write_signed(path: str) -> None:
@@ -166,9 +204,17 @@ def write_signed(path: str) -> None:
 
 def main() -> None:
     write_hdfc(os.path.join(HERE, "sample_hdfc.csv"))
-    write_icici(os.path.join(HERE, "sample_icici.csv"))
+    # The ICICI CSV and PDF share one event list, so the two files are identical
+    # data in two formats (an exact CSV-vs-PDF ingestion equivalence test).
+    icici_events = _icici_events()
+    write_icici(os.path.join(HERE, "sample_icici.csv"), icici_events)
     write_signed(os.path.join(HERE, "sample_signed.csv"))
     print("Wrote sample_hdfc.csv, sample_icici.csv, sample_signed.csv to", HERE)
+    try:
+        write_icici_pdf(os.path.join(HERE, "sample_icici.pdf"), icici_events)
+        print("Wrote sample_icici.pdf to", HERE)
+    except ImportError:
+        print("Skipped sample_icici.pdf (install fpdf2 to build the PDF sample).")
 
 
 if __name__ == "__main__":

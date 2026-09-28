@@ -148,7 +148,7 @@ def _badges(d: dict) -> list[tuple[str, str, str]]:
     if d.get("price_creep"):
         out.append(("Price rose", *_AMBER))          # the amounts show in the trail
     if d.get("cross_account_duplicate"):
-        out.append(("Duplicate · 2 accounts", *_BLUE))
+        out.append(("Duplicate · across accounts", *_BLUE))
     elif d.get("duplicate"):
         out.append(("Duplicate", *_BLUE))
     if d.get("status") == "stopped":

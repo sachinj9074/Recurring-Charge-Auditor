@@ -13,7 +13,7 @@ friends and colleagues for real feedback, using the builder's own LLM API key.
 
 ## Architecture in brief
 
-Three layers. Ingest (manual tabular upload for the MVP), Detect (deterministic
+Three layers. Ingest (manual upload, tabular or digital PDF), Detect (deterministic
 core plus an LLM enrichment layer), Act (later phase). Detection is bank-agnostic:
 it runs on a normalized schema and national rails, so all bank-specific variation
 is confined to one thin ingestion layer.
@@ -52,13 +52,15 @@ is confined to one thin ingestion layer.
     - Ignored: a collapsed, de-emphasized pile of spend with no steady amount or
       schedule (random daily food, cabs, cash/ATM, one-off vendor payments). It is
       kept out of the way so it does not crowd the review, not hard-deleted.
-- No limit on which bank. Limit on file format only. Tabular (CSV/XLS/XLSX) is
-  Phase 1; PDF is later.
+- No limit on which bank. Limit on file format only. Tabular (CSV/XLS/XLSX) and
+  digital (text-based) PDF are supported; a PDF is read from its text layer and
+  folded into the same grid, so detection is unchanged. Scanned/image PDFs (OCR)
+  are still out of scope.
 - Strip personal identifiers (name, address, account number, balance) before
   anything reaches the LLM or storage.
 - Store only the derived charge list and user confirmations. Discard the raw
   statement after processing. Keep the API key server-side.
-- Multi-account from day one in the schema and engine, UI cap of 2 for the MVP.
+- Multi-account from day one in the schema and engine, UI cap of 5 for the MVP.
   Every charge carries its source account.
 
 ## Current phase

@@ -295,19 +295,31 @@ def _upload_body(store) -> None:
     if acct_options:
         acct_id = st.selectbox("Attach to which account?", list(acct_options),
                                format_func=lambda i: acct_options[i], key="up_acct")
-    file = st.file_uploader("Upload a CSV, XLS, or XLSX statement", type=["csv", "xls", "xlsx"],
-                            key="up_file")
+    file = st.file_uploader("Upload a statement (CSV, XLS, XLSX, or PDF)",
+                            type=["csv", "xls", "xlsx", "pdf"], key="up_file")
+    pdf_password = ""
+    if file is not None and file.name.lower().endswith(".pdf"):
+        pdf_password = st.text_input(
+            "PDF password (only if your statement is password-protected)",
+            type="password", key="up_pdf_pw",
+            help="Many Indian bank e-statement PDFs open only with a password (often your PAN, "
+                 "date of birth, or a code the bank sent). Leave this blank if yours opens "
+                 "without one. It is used only to read the file now and is never stored.")
     if file is not None and st.button("Read file", key="up_read", type="primary"):
-        _start_pending(file, acct_id)
+        _start_pending(file, acct_id, pdf_password or None)
 
     if st.session_state.pending:
         _checkpoint(store)
 
 
-def _start_pending(file, account_id) -> None:
+def _start_pending(file, account_id, password=None) -> None:
     try:
-        grid = ingest.read_table(file.getvalue(), file.name)
+        grid = ingest.read_table(file.getvalue(), file.name, password=password)
         m = mapping.infer(grid, allow_llm=paid_enabled())
+    except ingest.PdfPasswordError:
+        st.error("This PDF is password-protected. Enter its password above, then click "
+                 "Read file again.")
+        return
     except normalize.MappingError:
         st.error("Could not work out the columns automatically. Please check this is a bank "
                  "statement export, or try a different file.")

@@ -162,7 +162,10 @@ interchangeable. The real cliff is tabular versus PDF.
 
 - Tabular (CSV, XLS, XLSX) from any bank: Phase 1.
 - Digital PDF: harder, because layout is positional not structural and lines
-  wrap. Phase 1.5.
+  wrap. Handled in Phase 1: the text layer (words plus positions) is
+  reconstructed into the same grid the tabular path uses, and the
+  mapping-confirmation checkpoint backstops an imperfect read. Password-protected
+  PDFs are supported.
 - Scanned or image PDF: needs OCR, and OCR errors on amounts amplify the silent
   miscompute risk. Its own hardening track, not Phase 1.
 
@@ -198,14 +201,15 @@ the category.
 ## 9. Multi-account
 
 Cost scales with the number of distinct statement formats, not the number of
-accounts. Two accounts at the same bank is nearly free. Two banks means a second
-trip through the generic normalization layer, which the design already handles.
+accounts. Several accounts at the same bank are nearly free. A second bank means
+a second trip through the generic normalization layer, which the design already
+handles.
 
 - Build the data model and engine multi-account from day one. Every account is
   its own entity. Every transaction and every detected charge carries which
   account it came from. Detection runs per account. Retrofitting a single-account
   schema later is painful and touches everything.
-- UI cap of 2 accounts for the MVP. This is a product limit, not an
+- UI cap of 5 accounts for the MVP. This is a product limit, not an
   architectural one.
 - Detection logic is unchanged by multi-account. A mandate is tied to one
   account and never hops, so recurrence math stays per account. No cross-account
@@ -214,8 +218,8 @@ trip through the generic normalization layer, which the design already handles.
   service paid on two different cards. Because merchant identity is already
   normalized on the VPA, this is a thin post-detection merge, not new machinery.
   It directly addresses the duplication failure.
-- Risk: two accounts per user is more financial data per head, so the honeypot
-  grows per user. Hold the store-only-the-derived-list line firmly.
+- Risk: several accounts per user is more financial data per head, so the
+  honeypot grows per user. Hold the store-only-the-derived-list line firmly.
 
 ## 10. Data safety and privacy
 
@@ -243,15 +247,17 @@ How the five failures map to phases (a completeness check):
 
 Phases:
 
-- Phase 1, MVP. Manual tabular upload from any bank, generic normalization with
+- Phase 1, MVP. Manual upload from any bank (tabular or digital PDF), generic normalization with
   mapping confirmation, deterministic recurrence engine, LLM enrichment layer,
   two-lens output, confidence-tiered review and confirmation UI, per-user auth,
   minimal encrypted storage of the derived list, multi-account schema with a UI
-  cap of 2, cross-account and same-account duplicate detection, price-creep
+  cap of 5, cross-account and same-account duplicate detection, price-creep
   detection. Deliverable: a usable, shareable, password-protected tool that
   produces a confirmed, categorized recurring-charge list per user. Detailed
   below.
-- Phase 1.5. Digital PDF ingestion.
+- Phase 1.5. Digital (text-based) PDF ingestion. Done: folded into Phase 1, read
+  from the PDF text layer into the same grid, with password-protected PDFs
+  supported. Scanned-PDF OCR remains later/optional.
 - Phase 2, Act. Per-merchant cancellation steps, pre-filled cancel messages,
   timed pre-renewal and pre-trial nudges. Assisted, not automated. This is the
   value and willingness-to-pay layer.
@@ -272,10 +278,15 @@ Build modules:
 
 1. Auth and user isolation. Per-user login, password-gated. Each user's data
    isolated from every other user's.
-2. Ingestion and normalization. Accept CSV, XLS, XLSX. Generic column detection
-   (deterministic keywords first, LLM fallback for unknown layouts). Handle all
-   three debit/credit conventions. Mapping-confirmation checkpoint. PII stripping
-   at ingestion. Attach each upload to an account entity, UI cap of 2.
+2. Ingestion and normalization. Accept CSV, XLS, XLSX, and digital (text-based)
+   PDF. A PDF is read from its text layer (words plus positions) and folded into
+   the same ragged grid the tabular path produces, so column detection and
+   everything downstream are unchanged; scanned/image PDFs (OCR) are out of scope.
+   Password-protected PDFs are supported by prompting for the password. Generic
+   column detection (deterministic keywords first, LLM fallback for unknown
+   layouts). Handle all three debit/credit conventions. Mapping-confirmation
+   checkpoint. PII stripping at ingestion. Attach each upload to an account
+   entity, UI cap of 5.
 3. Detection engine (deterministic). Merchant keying (UPI on VPA, ACH on
    descriptor plus amount plus day). Recurrence grouping and cadence
    classification. Confidence tiers. Price-creep flag. Duplicate flag.
@@ -298,7 +309,7 @@ Phase 1 non-goals (explicitly out):
 
 - Email, SMS, or Account Aggregator ingestion.
 - Automated cancellation.
-- PDF of any kind (that is Phase 1.5).
+- Scanned or image PDF (needs OCR; digital text-based PDF is supported).
 - Investment performance, returns, or valuation.
 - Real-time data.
 - Native mobile.

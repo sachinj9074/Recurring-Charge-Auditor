@@ -22,7 +22,7 @@ Note: create() is a read-then-write, so two simultaneous signups of the same
 brand-new username could race. Acceptable at this scale (a handful of trusted
 users); a hosted lock is future work.
 
-Naming: this is a *user login*. A user's *bank accounts* (UI cap of 2) are a
+Naming: this is a *user login*. A user's *bank accounts* (UI cap of 5) are a
 separate domain in accounts.py. See recurring-charge-auditor-SPEC.md sections 9, 10.
 """
 

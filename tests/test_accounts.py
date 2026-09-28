@@ -27,10 +27,12 @@ def test_empty_label_rejected():
 
 def test_cap_enforced():
     s = _store()
-    accounts.create_account(s, label="One")
-    accounts.create_account(s, label="Two")
+    # Fill exactly up to the product cap, then the next one must be rejected.
+    for i in range(accounts.MAX_BANK_ACCOUNTS):
+        accounts.create_account(s, label=f"Account {i + 1}")
+    assert len(accounts.list_accounts(s)) == accounts.MAX_BANK_ACCOUNTS
     with pytest.raises(accounts.BankAccountError):
-        accounts.create_account(s, label="Three")
+        accounts.create_account(s, label="One too many")
 
 
 def test_rename():

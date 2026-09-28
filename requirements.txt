@@ -6,10 +6,12 @@ anthropic>=0.40
 jsonschema>=4.23
 python-dotenv>=1.0
 
-# Tabular statement ingestion (CSV / XLS / XLSX)
+# Statement ingestion (CSV / XLS / XLSX / PDF)
 pandas>=2.2
 openpyxl>=3.1        # .xlsx reading for pandas
 xlrd>=2.0            # legacy .xls reading
+pdfplumber>=0.11     # digital (text-based) PDF statements; reads the text layer only
+fpdf2>=2.7           # builds the synthetic PDF sample and its ingestion tests (dev/test)
 
 # Encryption (per-user store) and cloud storage (hosted deploy only)
 cryptography>=42.0   # AES-GCM: per-user store encryption
