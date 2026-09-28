@@ -2,8 +2,6 @@
 
 **Find every subscription and auto-debit hiding in your bank statements, and tell the money leaks apart from the wealth-building.** Upload a statement from any Indian bank, and the tool detects your recurring charges (UPI AutoPay, e-NACH, card auto-pays, standing instructions), separates genuine subscriptions from SIPs and other investments, flags price hikes and duplicates, and lets you confirm the list in a few minutes.
 
-Reference point: Rocket Money (US) proves the model. This is built for the Indian rails, where the same job is unsolved.
-
 > **Status: Phase 1 MVP, live.** The full pipeline is built and tested (134 tests): ingestion and normalization (CSV, XLS, XLSX, and digital PDF), the deterministic detection engine, a distillation funnel that presents a short, confident shortlist instead of every repeat, the numbers-blind LLM enrichment layer, and the Streamlit review UI. A one-command eval scorer reports the safety-critical metrics (all green). It is deployed on Streamlit Community Cloud with Cloudflare R2 for durable, encrypted storage.
 
 ## Try it
@@ -30,7 +28,7 @@ The loop is: **upload a statement, confirm how it was read, detect, split into t
 - **Lets you confirm, and remembers.** Keep or dismiss each charge, correct its category, tag internal transfers, add a note, and move anything in or out of the shortlist. Every decision is remembered against the merchant (its VPA or descriptor), so it survives a re-upload and carries forward to future months of the same charge. Subscription cards show the true annual cost and the next expected date.
 - **Tracks across accounts.** Add up to five bank accounts, and every charge carries its source account, so the same service billed on two different cards is spotted as one duplicate across accounts.
 
-## Why it is built this way (the engineering worth reading)
+## Why it is built this way
 
 1. **All money math is deterministic; the LLM never touches a number.** Recurrence, cadence, amount, price-change, and duplicate logic live in plain code. The model only decodes a cryptic descriptor into a brand name, assigns a category, and writes a one-line explanation, behind a schema-validated contract that structurally cannot alter a figure the engine computed. A model that invents patterns or answers differently run to run is fatal in a money tool.
 
